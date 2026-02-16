@@ -173,7 +173,11 @@ async def telegram_webhook(
         text = (message.get("text") or "").strip()
         chat_id = str(((message.get("chat") or {}).get("id", "")))
 
-        if chat_id and is_allowed_chat(chat_id):
+        if chat_id:
+            if not is_allowed_chat(chat_id):
+                tg_api("sendMessage", {"chat_id": chat_id, "text": f"Нет доступа. chat_id={chat_id}"})
+                return {"ok": True}
+
             cmd = normalize_cmd(text)
             if cmd in {"/start", "/feeds", "/update", "start", "feeds", "update"}:
                 send_controls(chat_id)
