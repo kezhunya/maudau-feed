@@ -6,8 +6,8 @@ from typing import Any
 import requests
 from fastapi import FastAPI, Header, HTTPException, Request
 
-TG_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-GH_TOKEN = os.environ["GH_DISPATCH_TOKEN"]
+TG_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+GH_TOKEN = os.environ.get("GH_DISPATCH_TOKEN", "")
 ALLOWED_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
 
@@ -42,7 +42,19 @@ DIRECT_FEEDS = {
 app = FastAPI(title="Telegram Feed Webhook")
 
 
+def missing_env() -> list[str]:
+    missing: list[str] = []
+    if not TG_TOKEN:
+        missing.append("TELEGRAM_BOT_TOKEN")
+    if not GH_TOKEN:
+        missing.append("GH_DISPATCH_TOKEN")
+    return missing
+
+
 def tg_api(method: str, payload: dict[str, Any]) -> dict[str, Any]:
+    miss = missing_env()
+    if miss:
+        raise RuntimeError(f"Missing env: {', '.join(miss)}")
     url = f"https://api.telegram.org/bot{TG_TOKEN}/{method}"
     resp = requests.post(url, data=payload, timeout=30)
     resp.raise_for_status()
@@ -78,6 +90,10 @@ def answer_callback(callback_id: str, text: str) -> None:
 
 
 def dispatch_workflow(feed_key: str) -> tuple[bool, str]:
+    miss = missing_env()
+    if miss:
+        return False, f"Не заданы переменные окружения: {', '.join(miss)}"
+
     feed = FEEDS.get(feed_key)
     if not feed:
         return False, "Неизвестная команда"
@@ -135,6 +151,9 @@ def normalize_cmd(text: str) -> str:
 
 @app.get("/health")
 def health() -> dict[str, str]:
+    miss = missing_env()
+    if miss:
+        return {"status": "degraded", "missing_env": ", ".join(miss)}
     return {"status": "ok"}
 
 
