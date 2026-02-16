@@ -26,6 +26,44 @@
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 
+## Telegram Webhook (мгновенные кнопки)
+
+Добавлены 4 кнопки:
+- `Обновить MAUDAU`
+- `Обновить EPICENTER`
+- `Обновить HOTLINE`
+- `Обновить ROZETKA`
+
+Файлы webhook:
+- `webhook/app.py`
+- `requirements-webhook.txt`
+- `render.yaml`
+- `set_telegram_webhook.py`
+
+### Быстрый запуск на Render
+
+1. В Render: `New +` -> `Blueprint` -> выберите репозиторий `kezhunya/maudau-feed`.
+2. После создания сервиса в переменные окружения добавьте:
+   - `TELEGRAM_BOT_TOKEN`
+   - `TELEGRAM_CHAT_ID`
+   - `GH_DISPATCH_TOKEN`
+3. Возьмите URL сервиса, например `https://marketplace-updater-webhook.onrender.com`.
+4. Установите webhook:
+
+```bash
+cd "/Users/Kezhunya/Documents/New project"
+export TELEGRAM_BOT_TOKEN="..."
+python3 set_telegram_webhook.py --url "https://marketplace-updater-webhook.onrender.com/telegram/webhook" --drop-pending
+```
+
+5. Для безопасности (рекомендуется): передайте `TELEGRAM_WEBHOOK_SECRET` из Render в команду:
+
+```bash
+python3 set_telegram_webhook.py --url "https://marketplace-updater-webhook.onrender.com/telegram/webhook" --secret "ВАШ_СЕКРЕТ_ИЗ_RENDER"
+```
+
+6. После переключения webhook старый polling-workflow `.github/workflows/telegram-feed-control.yml` оставлен только для ручного fallback.
+
 ## Публикация через GitHub Pages
 
 После первого успешного workflow файл будет доступен по адресу:
