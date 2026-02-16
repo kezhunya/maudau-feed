@@ -74,6 +74,7 @@ Webhook поддерживает авторизацию для прямых URL 
 - `*_AUTH_TYPE=bearer`
 - `*_AUTH_TYPE=header`
 - `*_AUTH_TYPE=cookie`
+- `*_AUTH_TYPE=api` (логин через `POST /api/auth/`)
 
 HOTLINE:
 - `HOTLINE_FEED_URL`
@@ -90,6 +91,19 @@ ROZETKA:
 - для `bearer`: `ROZETKA_BEARER_TOKEN`
 - для `header`: `ROZETKA_HEADER_NAME`, `ROZETKA_HEADER_VALUE`
 - для `cookie`: `ROZETKA_COOKIE`
+
+### Режим `api` (POST JSON auth)
+
+Общие переменные:
+- `API_AUTH_URL` (например `https://aqua-favorit.com.ua/api/auth/`)
+- `API_LOGIN`
+- `API_PASSWORD`
+
+Для каждого фида:
+- `*_METHOD=POST` (рекомендуется)
+- `*_API_TOKEN_PLACEMENT`: `bearer|header|query|body`
+- `*_API_TOKEN_KEY` (например `token` или `X-Auth-Token`)
+- `*_API_BODY` (опционально JSON-строка, например `{"action":"generate"}`)
 
 ## Публикация через GitHub Pages
 

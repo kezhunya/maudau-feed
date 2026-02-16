@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import time
 from typing import Any
 
 import requests
@@ -36,6 +37,10 @@ DIRECT_FEEDS = {
             "https://aqua-favorit.com.ua/marketplace-integration/generate-feed/hotline",
         ),
         "auth_type": os.environ.get("HOTLINE_AUTH_TYPE", "none").strip().lower(),
+        "method": os.environ.get("HOTLINE_METHOD", "GET").strip().upper(),
+        "api_body": os.environ.get("HOTLINE_API_BODY", "").strip(),
+        "api_token_placement": os.environ.get("HOTLINE_API_TOKEN_PLACEMENT", "bearer").strip().lower(),
+        "api_token_key": os.environ.get("HOTLINE_API_TOKEN_KEY", "token").strip(),
         "basic_user": os.environ.get("HOTLINE_BASIC_USER", ""),
         "basic_pass": os.environ.get("HOTLINE_BASIC_PASS", ""),
         "bearer_token": os.environ.get("HOTLINE_BEARER_TOKEN", ""),
@@ -50,6 +55,10 @@ DIRECT_FEEDS = {
             "https://aqua-favorit.com.ua/marketplace-integration/generate-feed/rozetka-feed",
         ),
         "auth_type": os.environ.get("ROZETKA_AUTH_TYPE", "none").strip().lower(),
+        "method": os.environ.get("ROZETKA_METHOD", "GET").strip().upper(),
+        "api_body": os.environ.get("ROZETKA_API_BODY", "").strip(),
+        "api_token_placement": os.environ.get("ROZETKA_API_TOKEN_PLACEMENT", "bearer").strip().lower(),
+        "api_token_key": os.environ.get("ROZETKA_API_TOKEN_KEY", "token").strip(),
         "basic_user": os.environ.get("ROZETKA_BASIC_USER", ""),
         "basic_pass": os.environ.get("ROZETKA_BASIC_PASS", ""),
         "bearer_token": os.environ.get("ROZETKA_BEARER_TOKEN", ""),
@@ -61,6 +70,12 @@ DIRECT_FEEDS = {
 
 app = FastAPI(title="Telegram Feed Webhook")
 
+API_AUTH_URL = os.environ.get("API_AUTH_URL", "https://aqua-favorit.com.ua/api/auth/").strip()
+API_LOGIN = os.environ.get("API_LOGIN", "").strip()
+API_PASSWORD = os.environ.get("API_PASSWORD", "").strip()
+
+_api_token_cache: dict[str, Any] = {"token": "", "exp_ts": 0.0}
+
 
 def missing_env() -> list[str]:
     missing: list[str] = []
@@ -69,6 +84,34 @@ def missing_env() -> list[str]:
     if not GH_TOKEN:
         missing.append("GH_DISPATCH_TOKEN")
     return missing
+
+
+def get_api_token() -> str:
+    now = time.time()
+    cached_token = str(_api_token_cache.get("token") or "")
+    exp_ts = float(_api_token_cache.get("exp_ts") or 0.0)
+    if cached_token and now < exp_ts:
+        return cached_token
+
+    if not API_AUTH_URL or not API_LOGIN or not API_PASSWORD:
+        raise RuntimeError("Missing API auth env: API_AUTH_URL/API_LOGIN/API_PASSWORD")
+
+    payload = {"login": API_LOGIN, "password": API_PASSWORD}
+    headers = {"Content-Type": "application/json"}
+    resp = requests.post(API_AUTH_URL, json=payload, headers=headers, timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+
+    status = (data.get("status") or "").upper()
+    token = str(((data.get("response") or {}).get("token") or "")).strip()
+    if status != "OK" or not token:
+        msg = (data.get("response") or {}).get("message") or "unknown auth error"
+        raise RuntimeError(f"API auth failed: {msg}")
+
+    # token lifetime is 600s; refresh slightly earlier.
+    _api_token_cache["token"] = token
+    _api_token_cache["exp_ts"] = now + 540
+    return token
 
 
 def tg_api(method: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -147,7 +190,8 @@ def trigger_direct_feed(feed_key: str) -> tuple[bool, str]:
     try:
         headers: dict[str, str] = {}
         auth = None
-        cookies = None
+        params: dict[str, Any] | None = None
+        json_body: dict[str, Any] | None = None
 
         auth_type = (feed.get("auth_type") or "none").lower()
         if auth_type == "basic":
@@ -165,8 +209,37 @@ def trigger_direct_feed(feed_key: str) -> tuple[bool, str]:
             cookie_str = (feed.get("cookie") or "").strip()
             if cookie_str:
                 headers["Cookie"] = cookie_str
+        elif auth_type == "api":
+            token = get_api_token()
+            placement = (feed.get("api_token_placement") or "bearer").lower()
+            token_key = (feed.get("api_token_key") or "token").strip()
 
-        resp = requests.get(feed["url"], headers=headers, auth=auth, cookies=cookies, timeout=60)
+            if placement == "bearer":
+                headers["Authorization"] = f"Bearer {token}"
+            elif placement == "header":
+                headers[token_key or "X-Auth-Token"] = token
+            elif placement == "query":
+                params = {token_key or "token": token}
+            elif placement == "body":
+                json_body = {token_key or "token": token}
+            else:
+                headers["Authorization"] = f"Bearer {token}"
+
+            body_raw = (feed.get("api_body") or "").strip()
+            if body_raw:
+                try:
+                    extra = json.loads(body_raw)
+                    if isinstance(extra, dict):
+                        json_body = {**(json_body or {}), **extra}
+                except Exception:
+                    pass
+
+        method = (feed.get("method") or "GET").upper()
+        if method == "POST":
+            headers.setdefault("Content-Type", "application/json")
+            resp = requests.post(feed["url"], headers=headers, auth=auth, params=params, json=json_body, timeout=60)
+        else:
+            resp = requests.get(feed["url"], headers=headers, auth=auth, params=params, timeout=60)
         if 200 <= resp.status_code < 300:
             return True, f"Запущено: {feed['title']}"
         return False, f"Ошибка запуска {feed['title']}: HTTP {resp.status_code}"
