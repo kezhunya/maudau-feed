@@ -24,6 +24,7 @@ ID_CLEAN_RE = re.compile(r"[^A-Za-z0-9]")
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
 MULTISPACE_RE = re.compile(r"\s+")
+MAX_DESC_LEN = 400
 
 TG_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TG_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -166,9 +167,9 @@ def normalize_name_description(offer: ET._Element) -> None:
         offer.remove(desc)
 
     if desc_ru is not None:
-        desc_ru.text = compact_text(HTML_TAG_RE.sub(" ", desc_ru.text or ""))[:2000]
+        desc_ru.text = compact_text(HTML_TAG_RE.sub(" ", desc_ru.text or ""))[:MAX_DESC_LEN]
     if desc_ua is not None:
-        desc_ua.text = compact_text(HTML_TAG_RE.sub(" ", desc_ua.text or ""))[:2000]
+        desc_ua.text = compact_text(HTML_TAG_RE.sub(" ", desc_ua.text or ""))[:MAX_DESC_LEN]
 
 
 def normalize_old_price(offer: ET._Element) -> None:
