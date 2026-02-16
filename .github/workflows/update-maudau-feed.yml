@@ -41,6 +41,12 @@ jobs:
 
       - name: Commit and push updated XML
         run: |
+          SIZE_BYTES=$(wc -c < update_maudau.xml)
+          LIMIT_BYTES=$((95 * 1024 * 1024))
+          if [ "$SIZE_BYTES" -ge "$LIMIT_BYTES" ]; then
+            echo "update_maudau.xml is too large: ${SIZE_BYTES} bytes"
+            exit 1
+          fi
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add update_maudau.xml

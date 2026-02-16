@@ -22,6 +22,7 @@ ALLOWED_VENDORS = {"мойдодыр", "dusel"}
 OLD_PRICE_TAGS = ("old_price", "oldprice", "price_old", "old", "priceold")
 ID_CLEAN_RE = re.compile(r"[^A-Za-z0-9]")
 HTML_TAG_RE = re.compile(r"<[^>]+>")
+CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
 
 TG_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TG_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -145,9 +146,9 @@ def normalize_name_description(offer: ET._Element) -> None:
         offer.remove(name)
 
     if name_ru is not None:
-        name_ru.text = normalize_text(HTML_TAG_RE.sub("", name_ru.text or ""))
+        name_ru.text = normalize_text(HTML_TAG_RE.sub("", name_ru.text or ""))[:255]
     if name_ua is not None:
-        name_ua.text = normalize_text(HTML_TAG_RE.sub("", name_ua.text or ""))
+        name_ua.text = normalize_text(HTML_TAG_RE.sub("", name_ua.text or ""))[:255]
 
     desc = offer.find("description")
     desc_ru = offer.find("description_ru")
@@ -160,9 +161,9 @@ def normalize_name_description(offer: ET._Element) -> None:
         offer.remove(desc)
 
     if desc_ru is not None:
-        desc_ru.text = normalize_text(desc_ru.text)
+        desc_ru.text = normalize_text(desc_ru.text)[:10000]
     if desc_ua is not None:
-        desc_ua.text = normalize_text(desc_ua.text)
+        desc_ua.text = normalize_text(desc_ua.text)[:10000]
 
 
 def normalize_old_price(offer: ET._Element) -> None:
@@ -196,6 +197,20 @@ def cleanup_params(offer: ET._Element) -> None:
         p.set("name", pname)
 
 
+def cleanup_pictures(offer: ET._Element) -> None:
+    pictures = [p for p in offer.findall("picture")]
+    kept = 0
+    for pic in pictures:
+        url = normalize_text(pic.text)
+        if not url or " " in url or len(url) > 255 or CYRILLIC_RE.search(url):
+            offer.remove(pic)
+            continue
+        pic.text = url
+        kept += 1
+        if kept > 12:
+            offer.remove(pic)
+
+
 def normalize_offer_id(offer: ET._Element) -> bool:
     raw = resolve_offer_id_raw(offer)
     clean = ID_CLEAN_RE.sub("", raw)
@@ -219,15 +234,12 @@ def normalize_offer(offer: ET._Element) -> bool:
     normalize_name_description(offer)
     normalize_old_price(offer)
     cleanup_params(offer)
+    cleanup_pictures(offer)
 
     if not normalize_offer_id(offer):
         return False
 
     set_available(offer, extract_available(offer))
-
-    pictures = [p for p in offer.findall("picture") if normalize_text(p.text)]
-    for extra in pictures[12:]:
-        offer.remove(extra)
 
     return has_required_fields(offer)
 
@@ -325,7 +337,9 @@ def main() -> int:
         ensure_root_date(root)
         ensure_categories(root)
 
-        tree.write(str(OUTPUT_XML), encoding="UTF-8", xml_declaration=True, pretty_print=True)
+        tree.write(str(OUTPUT_XML), encoding="UTF-8", xml_declaration=True, pretty_print=False)
+
+        size_mb = OUTPUT_XML.stat().st_size / (1024 * 1024)
 
         report = (
             "MAUDAU feed updated\n"
@@ -334,7 +348,8 @@ def main() -> int:
             f"Removed missing in Rozetka: {removed_missing}\n"
             f"Removed invalid for Maudau: {removed_invalid}\n"
             f"Price updates: {changed_price}\n"
-            f"Old price/availability updates: {changed_other}"
+            f"Old price/availability updates: {changed_other}\n"
+            f"Output size: {size_mb:.2f} MB"
         )
 
         print(report)
