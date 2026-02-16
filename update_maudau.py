@@ -23,6 +23,7 @@ OLD_PRICE_TAGS = ("old_price", "oldprice", "price_old", "old", "priceold")
 ID_CLEAN_RE = re.compile(r"[^A-Za-z0-9]")
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
+MULTISPACE_RE = re.compile(r"\s+")
 
 TG_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TG_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -71,6 +72,10 @@ def normalize_key(value: str | None) -> str:
 def child_text(offer: ET._Element, tag: str) -> str:
     node = offer.find(tag)
     return normalize_text(node.text if node is not None else "")
+
+
+def compact_text(value: str) -> str:
+    return normalize_text(MULTISPACE_RE.sub(" ", value))
 
 
 def find_param_value(offer: ET._Element, param_name: str) -> str:
@@ -161,9 +166,9 @@ def normalize_name_description(offer: ET._Element) -> None:
         offer.remove(desc)
 
     if desc_ru is not None:
-        desc_ru.text = normalize_text(desc_ru.text)[:10000]
+        desc_ru.text = compact_text(HTML_TAG_RE.sub(" ", desc_ru.text or ""))[:2000]
     if desc_ua is not None:
-        desc_ua.text = normalize_text(desc_ua.text)[:10000]
+        desc_ua.text = compact_text(HTML_TAG_RE.sub(" ", desc_ua.text or ""))[:2000]
 
 
 def normalize_old_price(offer: ET._Element) -> None:
@@ -235,6 +240,11 @@ def normalize_offer(offer: ET._Element) -> bool:
     normalize_old_price(offer)
     cleanup_params(offer)
     cleanup_pictures(offer)
+    offer.attrib.pop("group_id", None)
+
+    url_node = offer.find("url")
+    if url_node is not None:
+        offer.remove(url_node)
 
     if not normalize_offer_id(offer):
         return False
