@@ -123,7 +123,14 @@ def process_message(update: dict[str, Any]) -> None:
     if not chat_id or not is_allowed_chat(chat_id):
         return
 
-    if text.lower() in {"/start", "/feeds", "/update"}:
+    cmd = text.lower()
+    if cmd.startswith("/"):
+        cmd = cmd.split()[0]
+        cmd = cmd.split("@", 1)[0]
+    else:
+        cmd = cmd.split()[0] if cmd else ""
+
+    if cmd in {"/start", "/feeds", "/update", "start", "feeds", "update"}:
         send_controls(chat_id)
 
 
