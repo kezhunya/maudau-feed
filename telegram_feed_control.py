@@ -164,10 +164,28 @@ def main() -> int:
             return 0
 
         last_update_id = updates[-1]["update_id"]
+        menu_sent_to_chats: set[str] = set()
 
         for upd in updates:
             if "message" in upd:
+                message = upd.get("message") or {}
+                chat_id = str(((message.get("chat") or {}).get("id", "")))
+                text = (message.get("text") or "").strip()
+
+                cmd = text.lower()
+                if cmd.startswith("/"):
+                    cmd = cmd.split()[0]
+                    cmd = cmd.split("@", 1)[0]
+                else:
+                    cmd = cmd.split()[0] if cmd else ""
+
+                is_menu_command = cmd in {"/start", "/feeds", "/update", "start", "feeds", "update"}
+                if is_menu_command and chat_id in menu_sent_to_chats:
+                    continue
+
                 process_message(upd)
+                if is_menu_command and chat_id:
+                    menu_sent_to_chats.add(chat_id)
             elif "callback_query" in upd:
                 process_callback(upd)
 
