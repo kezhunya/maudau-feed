@@ -31,11 +31,31 @@ FEEDS = {
 DIRECT_FEEDS = {
     "hotline": {
         "title": "HOTLINE",
-        "url": "https://aqua-favorit.com.ua/marketplace-integration/generate-feed/hotline",
+        "url": os.environ.get(
+            "HOTLINE_FEED_URL",
+            "https://aqua-favorit.com.ua/marketplace-integration/generate-feed/hotline",
+        ),
+        "auth_type": os.environ.get("HOTLINE_AUTH_TYPE", "none").strip().lower(),
+        "basic_user": os.environ.get("HOTLINE_BASIC_USER", ""),
+        "basic_pass": os.environ.get("HOTLINE_BASIC_PASS", ""),
+        "bearer_token": os.environ.get("HOTLINE_BEARER_TOKEN", ""),
+        "header_name": os.environ.get("HOTLINE_HEADER_NAME", ""),
+        "header_value": os.environ.get("HOTLINE_HEADER_VALUE", ""),
+        "cookie": os.environ.get("HOTLINE_COOKIE", ""),
     },
     "rozetka_direct": {
         "title": "ROZETKA",
-        "url": "https://aqua-favorit.com.ua/marketplace-integration/generate-feed/rozetka-feed",
+        "url": os.environ.get(
+            "ROZETKA_FEED_URL",
+            "https://aqua-favorit.com.ua/marketplace-integration/generate-feed/rozetka-feed",
+        ),
+        "auth_type": os.environ.get("ROZETKA_AUTH_TYPE", "none").strip().lower(),
+        "basic_user": os.environ.get("ROZETKA_BASIC_USER", ""),
+        "basic_pass": os.environ.get("ROZETKA_BASIC_PASS", ""),
+        "bearer_token": os.environ.get("ROZETKA_BEARER_TOKEN", ""),
+        "header_name": os.environ.get("ROZETKA_HEADER_NAME", ""),
+        "header_value": os.environ.get("ROZETKA_HEADER_VALUE", ""),
+        "cookie": os.environ.get("ROZETKA_COOKIE", ""),
     },
 }
 
@@ -125,7 +145,28 @@ def trigger_direct_feed(feed_key: str) -> tuple[bool, str]:
         return False, "Неизвестная команда"
 
     try:
-        resp = requests.get(feed["url"], timeout=60)
+        headers: dict[str, str] = {}
+        auth = None
+        cookies = None
+
+        auth_type = (feed.get("auth_type") or "none").lower()
+        if auth_type == "basic":
+            auth = (feed.get("basic_user") or "", feed.get("basic_pass") or "")
+        elif auth_type == "bearer":
+            token = (feed.get("bearer_token") or "").strip()
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+        elif auth_type == "header":
+            name = (feed.get("header_name") or "").strip()
+            value = (feed.get("header_value") or "").strip()
+            if name and value:
+                headers[name] = value
+        elif auth_type == "cookie":
+            cookie_str = (feed.get("cookie") or "").strip()
+            if cookie_str:
+                headers["Cookie"] = cookie_str
+
+        resp = requests.get(feed["url"], headers=headers, auth=auth, cookies=cookies, timeout=60)
         if 200 <= resp.status_code < 300:
             return True, f"Запущено: {feed['title']}"
         return False, f"Ошибка запуска {feed['title']}: HTTP {resp.status_code}"

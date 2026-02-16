@@ -64,6 +64,33 @@ python3 set_telegram_webhook.py --url "https://marketplace-updater-webhook.onren
 
 6. После переключения webhook старый polling-workflow `.github/workflows/telegram-feed-control.yml` оставлен только для ручного fallback.
 
+### Если HOTLINE/ROZETKA отвечают 401
+
+Webhook поддерживает авторизацию для прямых URL по env-переменным в Render.
+
+Для каждого фида выберите тип:
+- `*_AUTH_TYPE=none`
+- `*_AUTH_TYPE=basic`
+- `*_AUTH_TYPE=bearer`
+- `*_AUTH_TYPE=header`
+- `*_AUTH_TYPE=cookie`
+
+HOTLINE:
+- `HOTLINE_FEED_URL`
+- `HOTLINE_AUTH_TYPE`
+- для `basic`: `HOTLINE_BASIC_USER`, `HOTLINE_BASIC_PASS`
+- для `bearer`: `HOTLINE_BEARER_TOKEN`
+- для `header`: `HOTLINE_HEADER_NAME`, `HOTLINE_HEADER_VALUE`
+- для `cookie`: `HOTLINE_COOKIE`
+
+ROZETKA:
+- `ROZETKA_FEED_URL`
+- `ROZETKA_AUTH_TYPE`
+- для `basic`: `ROZETKA_BASIC_USER`, `ROZETKA_BASIC_PASS`
+- для `bearer`: `ROZETKA_BEARER_TOKEN`
+- для `header`: `ROZETKA_HEADER_NAME`, `ROZETKA_HEADER_VALUE`
+- для `cookie`: `ROZETKA_COOKIE`
+
 ## Публикация через GitHub Pages
 
 После первого успешного workflow файл будет доступен по адресу:
