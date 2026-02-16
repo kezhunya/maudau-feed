@@ -32,7 +32,7 @@ TG_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 def send_telegram(message: str) -> None:
     if not TG_BOT_TOKEN or not TG_CHAT_ID:
-        print("[WARN] Telegram secrets are not set; skip notify")
+        print("⚠ TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не задан. Сообщение не отправлено.")
         return
     url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage"
     payload = {"chat_id": TG_CHAT_ID, "text": message}
@@ -40,11 +40,11 @@ def send_telegram(message: str) -> None:
         resp = requests.post(url, data=payload, timeout=20)
         resp.raise_for_status()
     except Exception as exc:
-        print(f"[WARN] Telegram send failed: {exc}")
+        print(f"⚠ Ошибка отправки в Telegram: {exc}")
 
 
 def download_file(url: str, path: Path, title: str, retries: int = 5, timeout: int = 180) -> None:
-    print(f"[LOAD] {title}")
+    print(f"▶ Загрузка: {title}")
     for attempt in range(1, retries + 1):
         try:
             r = requests.get(url, stream=True, timeout=timeout)
@@ -53,10 +53,10 @@ def download_file(url: str, path: Path, title: str, retries: int = 5, timeout: i
                 for chunk in r.iter_content(1024 * 1024):
                     if chunk:
                         f.write(chunk)
-            print(f"[OK] {title}")
+            print(f"✅ {title} загружен")
             return
         except Exception as exc:
-            print(f"[WARN] {title} attempt {attempt}/{retries}: {exc}")
+            print(f"⚠ Ошибка загрузки ({title}) попытка {attempt}/{retries}: {exc}")
             if attempt == retries:
                 raise
             time.sleep(5)
@@ -299,9 +299,9 @@ def build_rozetka_index(tree: ET._ElementTree) -> dict[str, dict[str, str]]:
 
 def main() -> int:
     try:
-        print("=== START MAUDAU FEED ===")
-        download_file(ROZETKA_FEED_URL, ROZETKA_XML, "Rozetka feed")
-        download_file(BASE_FEED_URL, BASE_XML, "Base feed")
+        print("===== СТАРТ =====")
+        download_file(ROZETKA_FEED_URL, ROZETKA_XML, "Розетка XML")
+        download_file(BASE_FEED_URL, BASE_XML, "Maudau XML")
 
         rozetka_tree = ET.parse(str(ROZETKA_XML))
         rozetka_idx = build_rozetka_index(rozetka_tree)
@@ -352,22 +352,27 @@ def main() -> int:
 
         size_mb = OUTPUT_XML.stat().st_size / (1024 * 1024)
 
-        report = (
-            "MAUDAU feed updated\n"
-            f"Total offers: {total}\n"
-            f"Kept offers: {kept}\n"
-            f"Removed missing in Rozetka: {removed_missing}\n"
-            f"Removed invalid for Maudau: {removed_invalid}\n"
-            f"Price updates: {changed_price}\n"
-            f"Old price/availability updates: {changed_other}\n"
-            f"Output size: {size_mb:.2f} MB"
-        )
+        report = f"""===== СТАРТ =====
+▶ Загрузка: Розетка XML
+✅ Розетка XML загружен
+▶ Загрузка: Maudau XML
+✅ Maudau XML загружен
+❌ Удалено из файла (не в Розетке, кроме Мойдодыр/Dusel): {removed_missing}
+⚠ Удалено как невалидные для MAUDAU: {removed_invalid}
+💲 Обновлено цен: {changed_price}
+🔁 Обновлено старая цена/наличие: {changed_other}
+📦 Отправляем на MAUDAU товаров: {kept}
+📐 Размер итогового файла: {size_mb:.2f} MB
+===== ГОТОВО ✅ ====="""
 
         print(report)
         send_telegram(report)
         return 0
     except Exception as exc:
-        error_msg = f"MAUDAU feed failed: {exc}"
+        error_msg = f"""===== СТАРТ =====
+▶ Загрузка: Розетка XML
+⚠ Ошибка: {exc}
+===== ОШИБКА ❌ ====="""
         print(error_msg, file=sys.stderr)
         send_telegram(error_msg)
         return 1
