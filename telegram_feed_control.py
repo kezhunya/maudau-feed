@@ -29,6 +29,17 @@ FEEDS = {
     },
 }
 
+DIRECT_FEEDS = {
+    "hotline": {
+        "title": "HOTLINE",
+        "url": "https://aqua-favorit.com.ua/marketplace-integration/generate-feed/hotline",
+    },
+    "rozetka_direct": {
+        "title": "ROZETKA",
+        "url": "https://aqua-favorit.com.ua/marketplace-integration/generate-feed/rozetka-feed",
+    },
+}
+
 
 def tg_api(method: str, payload: dict[str, Any]) -> dict[str, Any]:
     url = f"https://api.telegram.org/bot{TG_TOKEN}/{method}"
@@ -64,6 +75,8 @@ def keyboard() -> str:
     buttons = [
         [{"text": "Обновить MAUDAU", "callback_data": "run:maudau"}],
         [{"text": "Обновить EPICENTER", "callback_data": "run:epicenter"}],
+        [{"text": "Обновить HOTLINE", "callback_data": "run_direct:hotline"}],
+        [{"text": "Обновить ROZETKA", "callback_data": "run_direct:rozetka_direct"}],
     ]
     return json.dumps({"inline_keyboard": buttons}, ensure_ascii=False)
 
@@ -109,6 +122,20 @@ def dispatch_workflow(feed_key: str) -> tuple[bool, str]:
     return False, f"Ошибка запуска {feed['title']}: {err}"
 
 
+def trigger_direct_feed(feed_key: str) -> tuple[bool, str]:
+    feed = DIRECT_FEEDS.get(feed_key)
+    if not feed:
+        return False, "Неизвестная команда"
+
+    try:
+        resp = requests.get(feed["url"], timeout=60)
+        if 200 <= resp.status_code < 300:
+            return True, f"Запущено: {feed['title']}"
+        return False, f"Ошибка запуска {feed['title']}: HTTP {resp.status_code}"
+    except Exception as exc:
+        return False, f"Ошибка запуска {feed['title']}: {exc}"
+
+
 def is_allowed_chat(chat_id: str) -> bool:
     if not ALLOWED_CHAT_ID:
         return True
@@ -147,12 +174,16 @@ def process_callback(update: dict[str, Any]) -> None:
         answer_callback(callback_id, "Нет доступа")
         return
 
-    if not data.startswith("run:"):
+    if not data.startswith("run:") and not data.startswith("run_direct:"):
         answer_callback(callback_id, "Неизвестная команда")
         return
 
-    feed_key = data.split(":", 1)[1]
-    ok, text = dispatch_workflow(feed_key)
+    prefix, feed_key = data.split(":", 1)
+    if prefix == "run":
+        ok, text = dispatch_workflow(feed_key)
+    else:
+        ok, text = trigger_direct_feed(feed_key)
+
     answer_callback(callback_id, text if ok else "Ошибка запуска")
     tg_api("sendMessage", {"chat_id": chat_id, "text": text})
 
