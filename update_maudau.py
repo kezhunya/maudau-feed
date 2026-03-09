@@ -599,6 +599,44 @@ def normalize_key(value: str | None) -> str:
     return normalize_text(value).casefold()
 
 
+def build_source_category_names(root: ET._Element) -> dict[str, str]:
+    items: dict[str, str] = {}
+    parent_by_id: dict[str, str] = {}
+
+    for c in root.xpath("//shop/categories/category"):
+        cid = normalize_text(c.get("id"))
+        if not cid:
+            continue
+        items[cid] = normalize_text(c.text)
+        parent = normalize_text(c.get("parentId"))
+        if parent:
+            parent_by_id[cid] = parent
+
+    def is_generic(name: str) -> bool:
+        key = normalize_key(name)
+        return ("комплектующ" in key) or ("аксессуар" in key)
+
+    result: dict[str, str] = {}
+    for cid, name in items.items():
+        display = name
+        if is_generic(name):
+            cur = parent_by_id.get(cid, "")
+            seen: set[str] = set()
+            section = ""
+            while cur and cur not in seen:
+                seen.add(cur)
+                candidate = items.get(cur, "")
+                if candidate and not is_generic(candidate):
+                    section = candidate
+                    break
+                cur = parent_by_id.get(cur, "")
+            if section:
+                display = f"{name} ({section})"
+        result[cid] = display
+
+    return result
+
+
 def child_text(offer: ET._Element, tag: str) -> str:
     node = offer.find(tag)
     return normalize_text(node.text if node is not None else "")
@@ -2214,10 +2252,7 @@ def build_offer_detail_sheet(
     ]
     ws.append(headers)
 
-    source_category_names = {
-        normalize_text(c.get("id")): normalize_text(c.text)
-        for c in source_root.xpath("//shop/categories/category")
-    }
+    source_category_names = build_source_category_names(source_root)
 
     for offer in source_root.xpath("//offer"):
         source_id = child_text(offer, "categoryId")
@@ -2295,10 +2330,7 @@ def build_single_sheet_offer_report(
             return ""
         return allowed_values.get(normalize_text_key(mapped), "")
 
-    source_category_names = {
-        normalize_text(c.get("id")): normalize_text(c.text)
-        for c in source_root.xpath("//shop/categories/category")
-    }
+    source_category_names = build_source_category_names(source_root)
     source_category_order = [normalize_text(c.get("id")) for c in source_root.xpath("//shop/categories/category") if normalize_text(c.get("id"))]
     order_index = {sid: idx for idx, sid in enumerate(source_category_order)}
 
@@ -2713,10 +2745,7 @@ def main() -> int:
 
         tree = ET.parse(str(base_path))
         root = tree.getroot()
-        source_category_names = {
-            normalize_text(c.get("id")): normalize_text(c.text)
-            for c in root.xpath("//shop/categories/category")
-        }
+        source_category_names = build_source_category_names(root)
 
         # XLSX summary/report generation is intentionally disabled in repo version.
         # Feed update logic remains fully enabled below.
