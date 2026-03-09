@@ -85,6 +85,7 @@ SOURCE_TO_MAUDAU_CATEGORY = {
     "1136": "1424",
     "1144": "1427",
     "1066": "1428",
+    "1067": "3172",
     "1138": "1429",
     "1264": "1429",
     "1145": "1430",
@@ -114,6 +115,7 @@ SOURCE_TO_MAUDAU_CATEGORY = {
     "1109": "2223",
     "1110": "1906",
     "1111": "2957",
+    "1118": "3172",
     # Sanitary ware
     "1088": "2393",
     "1080": "1908",
@@ -143,7 +145,8 @@ SOURCE_TO_MAUDAU_CATEGORY = {
     # Heating / boilers / ventilation
     "1158": "2398",
     "1160": "1897",
-    "1167": "1900",
+    "1090": "3172",
+    "1167": "3189",
     # Heaters (from дополнение.xlsx)
     "1228": "669",
     "1266": "671",
@@ -159,6 +162,13 @@ SOURCE_TO_MAUDAU_CATEGORY = {
     "1120": "1902",
     # Shower (per manual mapping)
     "1102": "1904",
+}
+
+# Fallback names for Maudau category ids that may be absent in primary merchant_categories dump.
+MAUDAU_CATEGORY_NAME_OVERRIDES = {
+    "3175": "Электрические ТЭНы для сушилок для полотенец",
+    "3189": "Аксессуары к сушилке для полотенец и радиаторов",
+    "3172": "Сифоны",
 }
 
 # Categories explicitly marked as "will be created on Maudau later (no edits now)".
@@ -616,23 +626,39 @@ def build_source_category_names(root: ET._Element) -> dict[str, str]:
         key = normalize_key(name)
         return ("комплектующ" in key) or ("аксессуар" in key)
 
+    def resolve_parent_section(cid: str) -> str:
+        cur = parent_by_id.get(cid, "")
+        seen: set[str] = set()
+        while cur and cur not in seen:
+            seen.add(cur)
+            candidate = items.get(cur, "")
+            if candidate and not is_generic(candidate):
+                return candidate
+            cur = parent_by_id.get(cur, "")
+        return ""
+
     result: dict[str, str] = {}
     for cid, name in items.items():
         display = name
         if is_generic(name):
-            cur = parent_by_id.get(cid, "")
-            seen: set[str] = set()
-            section = ""
-            while cur and cur not in seen:
-                seen.add(cur)
-                candidate = items.get(cur, "")
-                if candidate and not is_generic(candidate):
-                    section = candidate
-                    break
-                cur = parent_by_id.get(cur, "")
+            section = resolve_parent_section(cid)
             if section:
                 display = f"{name} ({section})"
         result[cid] = display
+
+    # If the same visible name appears in several categories, disambiguate by parent section.
+    count_by_name: dict[str, int] = defaultdict(int)
+    for name in result.values():
+        count_by_name[name] += 1
+
+    for cid, display in list(result.items()):
+        if count_by_name.get(display, 0) <= 1:
+            continue
+        if "(" in display and ")" in display:
+            continue
+        section = resolve_parent_section(cid)
+        if section:
+            result[cid] = f"{display} ({section})"
 
     return result
 
@@ -780,11 +806,23 @@ def normalize_old_price(offer: ET._Element) -> None:
         node.text = old_value
 
 
-def resolve_merchant_categories_path() -> Path | None:
+def resolve_merchant_categories_paths() -> list[Path]:
+    paths: list[Path] = []
+    seen: set[str] = set()
     for candidate in MERCHANT_CATEGORIES_CANDIDATES:
-        if str(candidate) and candidate.is_file():
-            return candidate
-    return None
+        if not str(candidate) or not candidate.is_file():
+            continue
+        resolved = str(candidate.resolve())
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        paths.append(candidate)
+    return paths
+
+
+def resolve_merchant_categories_path() -> Path | None:
+    paths = resolve_merchant_categories_paths()
+    return paths[0] if paths else None
 
 
 def load_merchant_catalog(path: Path | None) -> dict[str, dict]:
@@ -827,6 +865,27 @@ def load_merchant_catalog(path: Path | None) -> dict[str, dict]:
         }
 
     return catalog
+
+
+def merge_merchant_catalogs(base: dict[str, dict], extra: dict[str, dict]) -> dict[str, dict]:
+    merged = dict(base)
+    for cid, meta in extra.items():
+        if cid not in merged:
+            merged[cid] = meta
+            continue
+        target = merged[cid]
+        if not target.get("name_ru") and meta.get("name_ru"):
+            target["name_ru"] = meta.get("name_ru")
+        if not target.get("name_uk") and meta.get("name_uk"):
+            target["name_uk"] = meta.get("name_uk")
+
+        target_lookup = target.setdefault("attr_lookup", {})
+        target_attrs = target.setdefault("attrs", {})
+        for attr_name, values_map in meta.get("attrs", {}).items():
+            target_attrs.setdefault(attr_name, {})
+            target_attrs[attr_name].update(values_map)
+        target_lookup.update(meta.get("attr_lookup", {}))
+    return merged
 
 
 def resolve_category_list_path() -> Path | None:
@@ -1720,6 +1779,36 @@ def has_required_fields(offer: ET._Element) -> bool:
     return len(pics) > 0
 
 
+def resolve_target_category_id(offer: ET._Element, source_id: str) -> str:
+    target_id = SOURCE_TO_MAUDAU_CATEGORY.get(source_id, source_id)
+
+    # 1167 "Аксессуары": TЭНы -> 3175, остальные -> 3189.
+    if source_id == "1167":
+        probe = " ".join(
+            [
+                child_text(offer, "name_ru"),
+                child_text(offer, "name_ua"),
+                child_text(offer, "description_ru"),
+                child_text(offer, "description_ua"),
+                find_param_value(offer, "Вид"),
+                find_param_value(offer, "Тип"),
+            ]
+        )
+        probe_key = normalize_key(probe)
+        if any(token in probe_key for token in ("тэн", "тен", "teh", "ten")):
+            return "3175"
+        return "3189"
+
+    # 1169 "Комплектующие": only siphons are remapped to 3172.
+    if source_id == "1169":
+        kind = normalize_key(find_param_value(offer, "Вид"))
+        if "сифон" in kind:
+            return "3172"
+        return source_id
+
+    return target_id
+
+
 def remap_offer_category(
     offer: ET._Element,
     merchant_catalog: dict[str, dict],
@@ -1733,7 +1822,7 @@ def remap_offer_category(
         # Keep category as-is by explicit business rule.
         return True, source_id, source_id, 0, source_id in merchant_catalog
 
-    target_id = SOURCE_TO_MAUDAU_CATEGORY.get(source_id, source_id)
+    target_id = resolve_target_category_id(offer, source_id)
     target_known = target_id in merchant_catalog
 
     set_or_create(offer, "categoryId", target_id)
@@ -1806,17 +1895,40 @@ def rebuild_categories(
 
     categories = ET.Element("categories")
     known = set()
-    for offer in shop.xpath(".//offers/offer"):
-        cid = child_text(offer, "categoryId")
+
+    def add_category(cid: str) -> None:
         if not cid or cid in known:
-            continue
+            return
         c = ET.SubElement(categories, "category", id=cid)
         c.text = (
-            merchant_catalog.get(cid, {}).get("name_ru")
+            MAUDAU_CATEGORY_NAME_OVERRIDES.get(cid)
+            or merchant_catalog.get(cid, {}).get("name_ru")
             or source_category_names.get(cid)
             or cid
         )
         known.add(cid)
+
+    for offer in shop.xpath(".//offers/offer"):
+        cid = child_text(offer, "categoryId")
+        add_category(cid)
+
+    # Keep mapped categories visible in header even when current offer slice is empty after filtering.
+    for sid in source_category_names.keys():
+        if sid in SKIP_REMAP_SOURCE_CATEGORIES or sid in QUESTION_SOURCE_CATEGORIES:
+            continue
+
+        extra_ids: list[str] = []
+        if sid == "1167":
+            extra_ids = ["3175", "3189"]
+        elif sid == "1169":
+            extra_ids = ["3172"]
+        else:
+            tid = SOURCE_TO_MAUDAU_CATEGORY.get(sid, sid)
+            if tid and tid != sid:
+                extra_ids = [tid]
+
+        for tid in extra_ids:
+            add_category(tid)
 
     shop.insert(0, categories)
 
@@ -2687,12 +2799,16 @@ def main() -> int:
         sources_state = load_sources_state()
         stale_alerts: list[str] = []
 
-        merchant_categories_path = resolve_merchant_categories_path()
-        merchant_catalog = load_merchant_catalog(merchant_categories_path)
+        merchant_categories_paths = resolve_merchant_categories_paths()
+        merchant_catalog: dict[str, dict] = {}
+        for p in merchant_categories_paths:
+            merchant_catalog = merge_merchant_catalogs(merchant_catalog, load_merchant_catalog(p))
         category_list_path = resolve_category_list_path()
         external_category_names = load_category_names_from_xlsx(category_list_path)
-        if merchant_categories_path:
-            print(f"✅ Подключен справочник категорий Maudau: {merchant_categories_path}")
+        if merchant_categories_paths:
+            print("✅ Подключены справочники категорий Maudau:")
+            for p in merchant_categories_paths:
+                print(f"   - {p}")
         else:
             print("⚠ merchant_categories.xml не найден, строгая проверка категорий и отчет отключены")
         if category_list_path:
