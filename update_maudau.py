@@ -1042,7 +1042,93 @@ def infer_forced_attrs_from_source_name(
     return inferred
 
 
+def infer_forced_attrs_from_offer(
+    offer: ET._Element,
+    source_category_id: str,
+    target_category_id: str,
+    merchant_catalog: dict[str, dict],
+) -> list[tuple[str, str]]:
+    inferred: list[tuple[str, str]] = []
+
+    if target_category_id != "1899":
+        return inferred
+
+    mount_value = (
+        find_param_value(offer, "Монтаж")
+        or find_param_value(offer, "Установка")
+        or find_param_value(offer, "Способ монтажа")
+        or ""
+    )
+    mount_key = normalize_key(mount_value)
+
+    if mount_key:
+        # Known source installation variants that Maudau expects as "Врезной (на изделие)".
+        if any(
+            token in mount_key
+            for token in (
+                "одно отверст",
+                "два отверст",
+                "три отверст",
+                "четыре отверст",
+                "на борт ванны",
+                "приставка для унитаза",
+            )
+        ):
+            picked = pick_allowed_value(
+                merchant_catalog,
+                target_category_id,
+                "Монтаж",
+                ["Врезной (на изделие)"],
+            )
+            if picked:
+                inferred.append(("Монтаж", picked))
+
+        holes_value = ""
+        if "одно отверст" in mount_key:
+            holes_value = "1 отверстие"
+        elif "два отверст" in mount_key:
+            holes_value = "2 отверстия"
+        elif "три отверст" in mount_key:
+            holes_value = "3 отверстия"
+        elif "четыре отверст" in mount_key:
+            holes_value = "4 отверстия"
+        if holes_value:
+            picked = pick_allowed_value(
+                merchant_catalog,
+                target_category_id,
+                "Кількість отворів",
+                [holes_value],
+            )
+            if picked:
+                inferred.append(("Кількість отворів", picked))
+
+        # Rule requested: washbasin mixers + wall mounting -> hidden installation.
+        if source_category_id == "1069" and "настенн" in mount_key:
+            picked = pick_allowed_value(
+                merchant_catalog,
+                target_category_id,
+                "Встановлення",
+                ["Скрытая"],
+            )
+            if picked:
+                inferred.append(("Встановлення", picked))
+
+    # For bidet mixers default spout type is stationary (only if allowed by Maudau).
+    if source_category_id == "1071":
+        picked = pick_allowed_value(
+            merchant_catalog,
+            target_category_id,
+            "Вилив",
+            ["Стационарный"],
+        )
+        if picked:
+            inferred.append(("Вилив", picked))
+
+    return inferred
+
+
 def collect_forced_attrs_for_source(
+    offer: ET._Element,
     source_category_id: str,
     source_category_name: str,
     target_category_id: str,
@@ -1050,6 +1136,7 @@ def collect_forced_attrs_for_source(
 ) -> list[tuple[str, str]]:
     rules = list(FORCED_ATTRS_BY_SOURCE_CATEGORY.get(source_category_id, []))
     rules.extend(infer_forced_attrs_from_source_name(source_category_name, target_category_id, merchant_catalog))
+    rules.extend(infer_forced_attrs_from_offer(offer, source_category_id, target_category_id, merchant_catalog))
 
     towel_type = TOWEL_TYPE_BY_SOURCE_CATEGORY.get(source_category_id)
     if towel_type and target_category_id == "1902":
@@ -1067,6 +1154,8 @@ def collect_forced_attrs_for_source(
         normalized_value = apply_category_value_override(target_category_id, canonical_name, raw_value)
         allowed_values = attrs.get(canonical_name, {})
         canonical_value = map_param_value_to_allowed(normalized_value, allowed_values)
+        if allowed_values and normalize_text_key(canonical_value) not in allowed_values:
+            continue
         key = (normalize_key(canonical_name), normalize_key(canonical_value))
         if not canonical_name or not canonical_value or key in seen:
             continue
@@ -1514,11 +1603,18 @@ def cleanup_params(offer: ET._Element, target_category_id: str, merchant_catalog
 
         mapped_name = map_param_name(pname, target_category_id)
         canonical_name = attr_lookup.get(normalize_key(mapped_name), mapped_name)
+        if attrs and canonical_name not in attrs:
+            offer.remove(p)
+            continue
         p.set("name", canonical_name)
 
         allowed_values = attrs.get(canonical_name, {})
         normalized_value = apply_category_value_override(target_category_id, canonical_name, pval)
-        p.text = map_param_value_to_allowed(normalized_value, allowed_values)
+        mapped_value = map_param_value_to_allowed(normalized_value, allowed_values)
+        if allowed_values and normalize_text_key(mapped_value) not in allowed_values:
+            offer.remove(p)
+            continue
+        p.text = mapped_value
 
         dedupe_key = (normalize_key(canonical_name), normalize_key(p.text))
         if dedupe_key in dedupe:
@@ -1535,6 +1631,7 @@ def apply_forced_category_params(
     merchant_catalog: dict[str, dict],
 ) -> int:
     rules = collect_forced_attrs_for_source(
+        offer,
         source_category_id,
         source_category_name,
         target_category_id,
