@@ -16,7 +16,8 @@ BASE_FEED_URL = "https://aqua-favorit.com.ua/content/export/b0026fd850ce11bb0cb7
 ROZETKA_FEED_URL = "http://parser.biz.ua/Aqua/api/export.aspx?action=rozetka&key=ui82P2VotQQamFTj512NQJK3HOlKvyv7"
 MAUDAU_DIR = Path(__file__).resolve().parent / "maudau"
 MAUDAU_DIR.mkdir(parents=True, exist_ok=True)
-OUTPUT_XML = MAUDAU_DIR / "update_maudau.xml"
+OUTPUT_XML = Path(__file__).resolve().parent / "update_maudau.xml"
+LOCAL_OUTPUT_XML = MAUDAU_DIR / "update_maudau.xml"
 MAPPING_REPORT_XLSX = MAUDAU_DIR / "maudau_mapping_gaps.xlsx"
 FINAL_MAPPING_TEMPLATE_XLSX = MAUDAU_DIR / "Финал_мапинг.xlsx"
 FINAL_MAPPING_REPORT_XLSX = MAUDAU_DIR / "Попытка1_готово.xlsx"
@@ -2684,6 +2685,10 @@ def main() -> int:
         rebuild_categories(root, merchant_catalog, source_category_names)
 
         tree.write(str(OUTPUT_XML), encoding="UTF-8", xml_declaration=True, pretty_print=False)
+        try:
+            shutil.copy2(OUTPUT_XML, LOCAL_OUTPUT_XML)
+        except Exception as exc:
+            print(f"⚠ Не удалось обновить локальную копию XML ({LOCAL_OUTPUT_XML}): {exc}")
 
         size_mb = OUTPUT_XML.stat().st_size / (1024 * 1024)
 
