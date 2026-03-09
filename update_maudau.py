@@ -31,6 +31,9 @@ ROZETKA_XML = TMP_DIR / "rozetka.xml"
 
 MERCHANT_CATEGORIES_CANDIDATES = [
     Path(os.environ.get("MAUDAU_MERCHANT_CATEGORIES_XML", "")).expanduser(),
+    Path("/Users/Kezhunya/Downloads/merchant_categories_2026-03-09-1229.xml"),
+    MAUDAU_DIR / "merchant_categories_2026-03-09-1229.xml",
+    Path("merchant_categories_2026-03-09-1229.xml"),
     Path("/Volumes/X-Files/Загрузки рабочие/Maudau/2/merchant_categories_2026-02-18-0837.xml"),
     MAUDAU_DIR / "merchant_categories_2026-02-18-0837.xml",
     Path("merchant_categories_2026-02-18-0837.xml"),
@@ -105,6 +108,7 @@ SOURCE_TO_MAUDAU_CATEGORY = {
     "1132": "2920",
     "1176": "2483",
     "1166": "1903",
+    "1168": "3165",
     "1141": "1175",
     "1171": "1411",
     "1189": "1411",
@@ -151,7 +155,6 @@ SKIP_REMAP_SOURCE_CATEGORIES = {
     "1134",
     "1153",
     "1161",
-    "1168",
     "1201",
     "1202",
     "1205",
@@ -174,14 +177,6 @@ QUESTION_SOURCE_CATEGORIES = {
     "1256",
 }
 
-# Source heater categories that must be taken from base feed with markup.
-HEATER_PRICE_RULES = {
-    "1228": {"target": "669", "price_markup_pct": 9, "old_price_markup_pct": 15},
-    "1266": {"target": "671", "price_markup_pct": 9, "old_price_markup_pct": 15},
-    "1227": {"target": "669", "price_markup_pct": 9, "old_price_markup_pct": 15},
-    "1226": {"target": "669", "price_markup_pct": 9, "old_price_markup_pct": 15},
-}
-
 # Keep these source categories in feed even if offer is absent in Rozetka.
 # This extends the vendor-level exception and is applied before Rozetka pruning.
 KEEP_WITHOUT_ROZETKA_SOURCE_CATEGORIES = {
@@ -193,6 +188,15 @@ KEEP_WITHOUT_ROZETKA_SOURCE_CATEGORIES = {
     # Warm floor
     "1271",  # Нагревательные маты
     "1272",  # Нагревательные кабели
+}
+
+# Always include these source categories in the XLSX layout blocks,
+# even when current source XML has zero offers for them.
+FORCE_LAYOUT_SOURCE_CATEGORIES = {
+    "1228",  # Керамические обогреватели
+    "1227",  # Металлокерамические обогреватели
+    "1226",  # Теплый плинтус
+    "1266",  # Инфракрасные обогреватели
 }
 
 # Source towel category id -> forced Type value for Maudau category 1902
@@ -249,6 +253,10 @@ COMMON_PARAM_NAME_MAP = {
     "тип подключения": "Підключення води",
     "диаметр подключения": "Діаметр підключення",
     "вес, кг": "Вага",
+    "гарантия": "Гарантія",
+    "гарантия, мес.": "Гарантія",
+    "гарантийный срок, мес.": "Гарантія",
+    "гарантийный срок, мес": "Гарантія",
     "поддон": "Піддон",
     "тип дверей": "Тип відчинення дверей",
     "длина душевого шланга, см": "Довжина душового шлангу",
@@ -293,6 +301,22 @@ CATEGORY_PARAM_NAME_OVERRIDES = {
         "тип": "Вид змішувача",
         "установка": "Встановлення",
     },
+    "669": {
+        "тип установки": "Установка",
+        "мощность, вт": "Потужність",
+        "площадь обслуживания, кв. м": "Площа обігріву",
+        "управление": "Управління",
+        "оснащение": "Особливості",
+        "цвет": "Колір",
+    },
+    "671": {
+        "тип установки": "Установка",
+        "мощность, вт": "Потужність",
+        "площадь обслуживания, кв. м": "Площа обігріву",
+        "управление": "Управління",
+        "оснащение": "Особливості",
+        "цвет": "Колір",
+    },
 }
 
 # Category value normalization: target category -> attr -> source value -> canonical Maudau value.
@@ -312,6 +336,47 @@ CATEGORY_ATTR_VALUE_OVERRIDES = {
             "кнопочный": "Нажимные",
             "порционный": "Нажимные",
             "рукоятка select": "Однорычажные",
+        },
+    },
+    "669": {
+        "Установка": {
+            "настенный": "Настенные",
+            "настенная": "Настенные",
+            "горизонтальный": "Настенные",
+            "вертикальный": "Настенные",
+            "горизонтальный/вертикальный": "Настенные",
+            "напольный": "Напольные",
+            "напольная": "Напольные",
+            "настольный": "Настольные",
+            "потолочный": "Потолочные",
+        },
+        "Управління": {
+            "регулятор": "Механическое",
+            "механическое": "Механическое",
+            "электронное": "Электронное",
+        },
+        "Особливості": {
+            "регулятор температуры|шнур с вилкой": "С терморегулятором",
+            "регулятор температуры": "С терморегулятором",
+        },
+    },
+    "671": {
+        "Установка": {
+            "настенный": "Настенные",
+            "настенная": "Настенные",
+            "горизонтальный": "Настенные",
+            "вертикальный": "Настенные",
+            "горизонтальный/вертикальный": "Настенные",
+            "напольный": "Напольные",
+            "напольная": "Напольные",
+            "настольный": "Настольные",
+            "потолочный": "Потолочные",
+        },
+        "Управління": {
+            "регулятор": "Механическое",
+            "механическое": "Механическое",
+            "электронное": "Электронное",
+            "сенсорное": "Сенсорное",
         },
     },
 }
@@ -474,32 +539,6 @@ def set_or_create(offer: ET._Element, tag: str, value: str) -> bool:
         node.text = value
         return True
     return False
-
-
-def parse_price_number(value: str) -> float | None:
-    raw = normalize_text(value)
-    if not raw:
-        return None
-    cleaned = re.sub(r"[^0-9,.\-]", "", raw).replace(",", ".")
-    if cleaned.count(".") > 1:
-        parts = cleaned.split(".")
-        cleaned = "".join(parts[:-1]) + "." + parts[-1]
-    try:
-        return float(cleaned)
-    except ValueError:
-        return None
-
-
-def format_price_number(value: float) -> str:
-    return f"{value:.2f}"
-
-
-def apply_markup(value: str, markup_pct: float) -> str:
-    num = parse_price_number(value)
-    if num is None:
-        return ""
-    marked = num * (1.0 + markup_pct / 100.0)
-    return format_price_number(marked)
 
 
 def set_available(offer: ET._Element, value: str) -> bool:
@@ -950,6 +989,10 @@ def normalize_unit_token(unit: str) -> str:
 def convert_unit_value(value: float, from_unit: str, to_unit: str) -> float | None:
     f = normalize_unit_token(from_unit)
     t = normalize_unit_token(to_unit)
+    if not f and t:
+        return value
+    if f and not t:
+        return value
     if not f or not t or f == t:
         return value
     if f == "мм" and t == "см":
@@ -1033,9 +1076,49 @@ def map_param_value_to_allowed(value: str, allowed_values: dict[str, str]) -> st
     if not clean or not allowed_values:
         return clean
 
+    # Remove finish suffixes globally before matching:
+    # matte and glossy words should not change base color semantics.
+    clean_base = re.sub(
+        r"\b(матов(?:ый|ая|ое|ые|ого|ому|ым|ом|ую|а|о|і|ий)?|глянцев(?:ый|ая|ое|ые|ого|ому|ым|ом|ую)?)\b",
+        "",
+        clean,
+        flags=re.IGNORECASE,
+    )
+    clean_base = compact_text(clean_base)
+    if clean_base:
+        clean = clean_base
+
     direct = allowed_values.get(normalize_text_key(clean))
     if direct:
         return direct
+
+    # Color simplification (e.g., "Черный матовый" -> "Черный") when such base value exists in allowed set.
+    color_aliases = {
+        "черный": "Черный",
+        "черний": "Черный",
+        "чорний": "Черный",
+        "чорный": "Черный",
+        "белый": "Белый",
+        "білий": "Белый",
+        "серый": "Серый",
+        "сірий": "Серый",
+        "графит": "Графит",
+        "графіт": "Графит",
+        "бежевый": "Бежевый",
+        "бежевий": "Бежевый",
+        "коричневый": "Коричневый",
+        "коричневий": "Коричневый",
+        "хром": "Хром",
+        "хромированный": "Хром",
+        "хромована": "Хром",
+        "сатин": "Хром",
+    }
+    key_clean = normalize_text_key(clean).replace("-", " ")
+    for token, canonical in color_aliases.items():
+        if token in key_clean:
+            m = allowed_values.get(normalize_text_key(canonical))
+            if m:
+                return m
 
     # 1) Apply generic morphology/language synonyms (RU/UA forms).
     synonym = apply_generic_value_synonyms(clean)
@@ -1079,6 +1162,202 @@ def map_param_value_to_allowed(value: str, allowed_values: dict[str, str]) -> st
             return allowed_canonical
 
     return clean
+
+
+def infer_color_from_name(name_text: str, allowed_values: dict[str, str]) -> str:
+    if not name_text or not allowed_values:
+        return ""
+
+    base = compact_text(name_text)
+    base = re.sub(
+        r"\b(матов(?:ый|ая|ое|ые|ого|ому|ым|ом|ую|а|о|і|ий)?|глянцев(?:ый|ая|ое|ые|ого|ому|ым|ом|ую)?)\b",
+        "",
+        base,
+        flags=re.IGNORECASE,
+    )
+    name_norm = " " + normalize_text_key(base).replace("-", " ") + " "
+
+    allowed_uniques = list(dict.fromkeys(allowed_values.values()))
+    allowed_uniques.sort(key=lambda x: len(normalize_text_key(x)), reverse=True)
+
+    for canonical in allowed_uniques:
+        cand = " " + normalize_text_key(canonical).replace("-", " ") + " "
+        if cand in name_norm:
+            return canonical
+    return ""
+
+
+def strict_map_value_for_attr(
+    target_category_id: str,
+    attr_name: str,
+    value: str,
+    merchant_catalog: dict[str, dict],
+) -> str:
+    meta = merchant_catalog.get(target_category_id, {})
+    attrs = meta.get("attrs", {})
+    allowed_values = attrs.get(attr_name, {})
+    mapped = map_param_value_to_allowed(value, allowed_values)
+    if not allowed_values:
+        return mapped
+    return allowed_values.get(normalize_text_key(mapped), "")
+
+
+def _params_lookup(source_params: dict[str, str]) -> dict[str, str]:
+    return {normalize_key(k): compact_text(v) for k, v in source_params.items() if k and v}
+
+
+def _find_param(source_params_lut: dict[str, str], *names: str) -> str:
+    for n in names:
+        v = source_params_lut.get(normalize_key(n), "")
+        if v:
+            return v
+    return ""
+
+
+def apply_cross_rules(
+    target_category_id: str,
+    source_category_id: str,
+    source_category_name: str,
+    source_params: dict[str, str],
+    merchant_catalog: dict[str, dict],
+) -> dict[str, str]:
+    """Apply explicit cross-mapping rules from 'хар. пересечение.xlsx'."""
+    out: dict[str, str] = {}
+    lut = _params_lookup(source_params)
+    meta = merchant_catalog.get(target_category_id, {})
+    attrs = meta.get("attrs", {})
+
+    def assign(attr_candidates: list[str], value: str) -> None:
+        for attr in attr_candidates:
+            if attr not in attrs:
+                continue
+            mapped = strict_map_value_for_attr(target_category_id, attr, value, merchant_catalog)
+            if mapped:
+                out[attr] = mapped
+                return
+
+    # Section 1: "смесители наши - maudau" (target category 1899).
+    if target_category_id == "1899":
+        mont = _find_param(lut, "Монтаж", "монтаж", "Способ монтажа", "Тип установки")
+        osob = _find_param(lut, "Особенности", "особенности", "Оснащение", "Оснащення")
+        nazn = _find_param(lut, "Назначение", "назначение", "Призначення")
+        mont_k = normalize_text_key(mont)
+        osob_k = normalize_text_key(osob)
+        nazn_k = normalize_text_key(nazn)
+        is_kitchen_mixer = source_category_id in {"1073", "1224"}
+
+        # Монтаж/установка.
+        mount_is_insert = any(
+            x in mont_k
+            for x in ["на одно отверстие", "на три отверстия", "на борт ванны", "на два отверстия", "приставка для унитаза"]
+        )
+        if mount_is_insert:
+            assign(["Монтаж", "Встановлення", "Установка"], "Врезной (на изделие)")
+        elif any(x in mont_k for x in ["наружный", "настенный"]):
+            assign(["Монтаж", "Встановлення", "Установка"], "настенный")
+        elif "наполь" in mont_k:
+            assign(["Монтаж", "Встановлення", "Установка"], "напольный")
+
+        # Внешняя/Скрытая (fallback rules).
+        if source_category_id == "1069" and "настенн" in mont_k:
+            assign(["Монтаж", "Встановлення"], "Скрытая")
+        elif "скрыт" in mont_k:
+            assign(["Монтаж", "Встановлення"], "Скрытая")
+        elif mont_k and not mount_is_insert:
+            assign(["Монтаж", "Встановлення"], "Внешняя")
+
+        # Вилив.
+        if any(x in osob_k for x in ["на две воды/гибкий излив", "гибкий излив"]):
+            assign(["Вилив"], "Гибкий")
+        elif any(x in osob_k for x in ["на две воды/выдвижной излив", "выдвижной излив"]):
+            assign(["Вилив"], "Выдвижной")
+        elif "каскад" in osob_k:
+            assign(["Вилив"], "Каскадный")
+        elif "излив" in osob_k:
+            assign(["Вилив"], "Поворотный")
+        else:
+            assign(["Вилив"], "Стационарный")
+
+        # Підключення до фільтру води.
+        if is_kitchen_mixer:
+            if any(x in osob_k for x in ["на две воды", "на две воды/выдвижной излив", "на две воды/гибкий излив"]):
+                assign(["Підключення до фільтру води"], "Есть")
+            else:
+                assign(["Підключення до фільтру води"], "Нет")
+
+        # Кількість отворів.
+        if "на одно отверстие" in mont_k:
+            assign(["Кількість отворів"], "1 отверстие")
+        elif "на два отверстия" in mont_k:
+            assign(["Кількість отворів"], "2 отверстия")
+        elif "на три отверстия" in mont_k:
+            assign(["Кількість отворів"], "3 отверстия")
+
+        # Оснащення.
+        if "с душевой лейкой" in nazn_k or "с душевым гарнитуром" in nazn_k:
+            assign(["Оснащення"], "С лейкой для душа")
+
+    # Section 2: "Все для принятия душа" (1904 / 2214 / 2299).
+    if target_category_id in {"1904", "2214", "2299"}:
+        modes = _find_param(lut, "Количество режимов", "количество режимов")
+        dia = _find_param(lut, "Диаметр душа, мм", "диаметр душа, мм")
+        hose = _find_param(lut, "Длина душевого шланга, см", "длина душевого шланга, см", "Длина шланга, см")
+        mont = _find_param(lut, "Монтаж", "монтаж")
+
+        modes_k = normalize_text_key(modes)
+        dia_k = normalize_text_key(dia)
+        mont_k = normalize_text_key(mont)
+
+        # Кількість режимів струменя ручного душу.
+        m = re.search(r"\d+", modes_k)
+        if m:
+            assign(["Кількість режимів струменя ручного душу", "Кількість режимів"], m.group(0))
+
+        # Діаметр ручної лійки.
+        if "100-199" in dia_k:
+            assign(["Діаметр ручної лійки", "Діаметр ручної лійки, мм"], "10 см")
+        elif "менее 100" in dia_k or "до 100" in dia_k:
+            assign(["Діаметр ручної лійки", "Діаметр ручної лійки, мм"], "8 см")
+
+        # Довжина душового шлангу.
+        hose_num = None
+        if hose:
+            m_h = re.search(r"\d+(?:[.,]\d+)?", normalize_text_key(hose))
+            if m_h:
+                try:
+                    hose_num = float(m_h.group(0).replace(",", "."))
+                except ValueError:
+                    hose_num = None
+        if hose_num is not None:
+            # If source field is in centimeters (common case), keep exact cm first.
+            if hose_num <= 300:
+                assign(["Довжина душового шлангу"], f"{normalize_number(hose_num)} см")
+            else:
+                # Legacy mapping where source value can be in millimeters.
+                if hose_num < 1250:
+                    assign(["Довжина душового шлангу"], "100 см")
+                elif abs(hose_num - 1250) < 1e-9:
+                    assign(["Довжина душового шлангу"], "125 см")
+                elif abs(hose_num - 1500) < 1e-9:
+                    assign(["Довжина душового шлангу"], "150 см")
+                elif abs(hose_num - 1600) < 1e-9:
+                    assign(["Довжина душового шлангу"], "160 см")
+                elif abs(hose_num - 1700) < 1e-9:
+                    assign(["Довжина душового шлангу"], "170 см")
+                elif abs(hose_num - 1750) < 1e-9:
+                    assign(["Довжина душового шлангу"], "175 см")
+                elif abs(hose_num - 1800) < 1e-9:
+                    assign(["Довжина душового шлангу"], "180 см")
+                elif abs(hose_num - 2000) < 1e-9:
+                    assign(["Довжина душового шлангу"], "200 см")
+
+        # Монтаж.
+        if "наружн" in mont_k:
+            assign(["Монтаж", "Встановлення"], "Настенный")
+        elif "скрыт" in mont_k:
+            assign(["Монтаж", "Встановлення"], "Скрытый")
+
+    return out
 
 
 def cleanup_params(offer: ET._Element, target_category_id: str, merchant_catalog: dict[str, dict]) -> None:
@@ -1730,181 +2009,376 @@ def build_single_sheet_offer_report(
     output_path: Path,
 ) -> None:
     try:
-        from openpyxl import load_workbook
+        from openpyxl import Workbook
         from openpyxl.comments import Comment
-        from openpyxl.styles import PatternFill
+        from openpyxl.worksheet.datavalidation import DataValidation
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+        from openpyxl.utils import get_column_letter
     except Exception:
         print("⚠ openpyxl не установлен, единый отчет не создан")
         return
 
-    if not template_path.exists():
-        print(f"⚠ Шаблон не найден: {template_path}")
-        return
-
-    wb = load_workbook(str(template_path))
-    ws = wb["Лист1"] if "Лист1" in wb.sheetnames else wb.active
-
-    # Keep only one sheet in final output.
-    for name in list(wb.sheetnames):
-        if name != ws.title:
-            del wb[name]
+    def strict_allowed_value(value: str, allowed_values: dict[str, str]) -> str:
+        clean = compact_text(value)
+        if not clean:
+            return ""
+        if not allowed_values:
+            return clean
+        mapped = map_param_value_to_allowed(clean, allowed_values)
+        if not mapped:
+            return ""
+        return allowed_values.get(normalize_text_key(mapped), "")
 
     source_category_names = {
         normalize_text(c.get("id")): normalize_text(c.text)
         for c in source_root.xpath("//shop/categories/category")
     }
+    source_category_order = [normalize_text(c.get("id")) for c in source_root.xpath("//shop/categories/category") if normalize_text(c.get("id"))]
+    order_index = {sid: idx for idx, sid in enumerate(source_category_order)}
 
-    # Clear body rows.
-    for r in range(3, ws.max_row + 1):
-        for c in range(1, 20):
-            cell = ws.cell(r, c)
-            cell.value = None
-            cell.comment = None
-            cell.fill = PatternFill(fill_type=None)
+    offers_rows: list[dict] = []
+    source_param_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    source_param_values: dict[str, dict[str, str]] = defaultdict(dict)
+    source_offers_present: set[str] = set()
 
-    yellow = PatternFill(start_color="FFF59D", end_color="FFF59D", fill_type="solid")
-
-    def source_param_value(offer: ET._Element, keys: list[str]) -> str:
-        for key in keys:
-            v = find_param_value(offer, key)
-            if v:
-                return v
-        return ""
-
-    rows = []
     for offer in source_root.xpath("//offer"):
         source_id = child_text(offer, "categoryId")
         source_name = source_category_names.get(source_id, "")
-        target_id = SOURCE_TO_MAUDAU_CATEGORY.get(source_id, source_id)
+        source_offers_present.add(source_id)
 
-        if source_id in SKIP_REMAP_SOURCE_CATEGORIES:
-            status_rank = 2
-            target_cell = "будет создана на maudau позже (пока не делаем с ней правок)"
-            target_name = ""
-        elif source_id in QUESTION_SOURCE_CATEGORIES:
-            status_rank = 3
-            target_cell = "?"
-            target_name = ""
-        else:
-            status_rank = 1
-            target_cell = target_id
-            target_name = merchant_catalog.get(target_id, {}).get("name_ru", "") or external_category_names.get(target_id, "")
-
-        article = resolve_offer_id_raw(offer)
-        name_ru = child_text(offer, "name_ru") or child_text(offer, "name")
-        desc_ru = child_text(offer, "description_ru") or child_text(offer, "description")
-
-        src_color = source_param_value(offer, ["Цвет", "Колір"])
-        src_mount = source_param_value(
-            offer,
-            ["Монтаж", "монтаж", "Способ монтажа", "Тип установки", "Установка", "Тип монтажа"],
-        )
-
-        mapped_attrs: dict[str, str] = {}
-        meta = merchant_catalog.get(str(target_id), {})
-        attr_lookup = meta.get("attr_lookup", {})
-        attrs = meta.get("attrs", {})
-
+        params: dict[str, str] = {}
         for p in offer.findall("param"):
             pname = normalize_text(p.get("name"))
             pval = compact_text(p.text or "")
             if not pname or not pval:
                 continue
-            mapped_name = map_param_name(pname, str(target_id))
-            canonical_name = attr_lookup.get(normalize_key(mapped_name), mapped_name)
-            if attrs and canonical_name not in attrs:
-                continue
-            normalized = apply_category_value_override(str(target_id), canonical_name, pval)
-            canonical_value = map_param_value_to_allowed(normalized, attrs.get(canonical_name, {}))
-            mapped_attrs.setdefault(canonical_name, canonical_value)
+            if pname not in params:
+                params[pname] = pval
+            source_param_counts[source_id][pname] += 1
+            source_param_values[source_id].setdefault(normalize_text_key(pname), pname)
 
-        forced = collect_forced_attrs_for_source(source_id, source_name, str(target_id), merchant_catalog)
-        for k, v in forced:
-            mapped_attrs[k] = v
-
-        md_view = ""
-        for key in ["Вид", "Вид змішувача", "Вид лійки"]:
-            if mapped_attrs.get(key):
-                md_view = mapped_attrs[key]
-                break
-        md_mount = ""
-        for key in ["Монтаж", "Встановлення", "Тип монтажу", "Тип установки"]:
-            if mapped_attrs.get(key):
-                md_mount = mapped_attrs[key]
-                break
-        md_extra = ""
-        for key in ["Застосування", "Тип", "Колір"]:
-            if mapped_attrs.get(key):
-                md_extra = f"{key}: {mapped_attrs[key]}"
-                break
-
-        rows.append(
-            (
-                status_rank,
-                source_id,
-                article,
-                name_ru,
-                desc_ru,
-                source_name,
-                target_cell,
-                target_name,
-                src_color,
-                src_mount,
-                md_view,
-                md_mount,
-                md_extra,
-                mapped_attrs,
-            )
+        offers_rows.append(
+            {
+                "article": resolve_offer_id_raw(offer),
+                "name_ru": child_text(offer, "name_ru") or child_text(offer, "name"),
+                "desc_ru": child_text(offer, "description_ru") or child_text(offer, "description"),
+                "source_id": source_id,
+                "source_name": source_name,
+                "params": params,
+            }
         )
 
-    rows.sort(key=lambda x: (x[0], x[1], normalize_key(x[2])))
+    # Build category groups: several source categories -> one Maudau category block.
+    mapped_groups: dict[str, list[str]] = defaultdict(list)
+    later_sources: list[str] = []
+    question_sources: list[str] = []
 
-    out = 3
-    for _, source_id, article, name_ru, desc_ru, source_name, target_cell, target_name, src_color, src_mount, md_view, md_mount, md_extra, mapped_attrs in rows:
-        ws.cell(out, 1).value = article
-        ws.cell(out, 2).value = name_ru
-        ws.cell(out, 3).value = desc_ru
-        ws.cell(out, 4).value = source_id
-        ws.cell(out, 5).value = source_name
-        ws.cell(out, 6).value = target_cell
-        ws.cell(out, 7).value = target_name
-        ws.cell(out, 8).value = src_color
-        ws.cell(out, 9).value = src_mount
-        ws.cell(out, 13).value = md_view
-        ws.cell(out, 14).value = md_mount
-        ws.cell(out, 15).value = md_extra
+    for sid in source_category_order:
+        if sid not in source_offers_present and sid not in FORCE_LAYOUT_SOURCE_CATEGORIES:
+            continue
+        if sid in SKIP_REMAP_SOURCE_CATEGORIES:
+            later_sources.append(sid)
+            continue
+        if sid in QUESTION_SOURCE_CATEGORIES:
+            question_sources.append(sid)
+            continue
+        if sid not in SOURCE_TO_MAUDAU_CATEGORY:
+            question_sources.append(sid)
+            continue
+        tid = SOURCE_TO_MAUDAU_CATEGORY[sid]
+        mapped_groups[tid].append(sid)
 
-        for c in [8, 9, 13, 14, 15]:
-            if normalize_text(ws.cell(out, c).value):
-                ws.cell(out, c).fill = yellow
+    def sort_sids(items: list[str]) -> list[str]:
+        return sorted(items, key=lambda s: order_index.get(s, 10**9))
 
-        # Put allowed target values into comment for quick manual fill on empty mapped cells.
-        if isinstance(target_cell, str) and target_cell.isdigit():
-            tmeta = merchant_catalog.get(target_cell, {})
-            attrs = tmeta.get("attrs", {})
-            if not md_view and attrs.get("Вид"):
-                vals = ", ".join(list(dict.fromkeys(attrs["Вид"].values()))[:12])
-                ws.cell(out, 13).comment = Comment(f"Возможные значения: {vals}", "Codex")
-            if not md_mount:
-                for k in ["Монтаж", "Встановлення", "Тип монтажу", "Тип установки"]:
-                    if attrs.get(k):
-                        vals = ", ".join(list(dict.fromkeys(attrs[k].values()))[:12])
-                        ws.cell(out, 14).comment = Comment(f"{k}: {vals}", "Codex")
-                        break
-            if not md_extra:
-                for k in ["Застосування", "Тип", "Колір"]:
-                    if attrs.get(k):
-                        vals = ", ".join(list(dict.fromkeys(attrs[k].values()))[:12])
-                        ws.cell(out, 15).comment = Comment(f"{k}: {vals}", "Codex")
-                        break
+    for k in list(mapped_groups.keys()):
+        mapped_groups[k] = sort_sids(mapped_groups[k])
+    later_sources = sort_sids(later_sources)
+    question_sources = sort_sids(question_sources)
 
-        out += 1
+    # Source params by category.
+    source_headers: dict[str, list[str]] = {}
+    for sid in set(source_offers_present).union(FORCE_LAYOUT_SOURCE_CATEGORIES):
+        headers = [p for p, _ in source_param_counts[sid].most_common()]
+        if not headers:
+            headers = ["(нет параметров)"]
+        source_headers[sid] = headers
 
-    # Header-level notes (as requested in parameter name cells).
-    ws.cell(2, 13).comment = Comment("Заполненные пересечения подсвечены желтым. Если пусто — см. примечание в ячейке строки.", "Codex")
-    ws.cell(2, 14).comment = Comment("Монтаж/установка нормализуются в формат Maudau.", "Codex")
-    ws.cell(2, 15).comment = Comment("Доп. параметр (например, Застосування/Тип/Колір).", "Codex")
+    # Maudau attrs by category.
+    maudau_headers: dict[str, list[str]] = {}
+    for tid in mapped_groups:
+        meta = merchant_catalog.get(tid, {})
+        maudau_headers[tid] = list(meta.get("attrs", {}).keys())
 
+    # Create workbook from scratch (single sheet).
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Лист1"
+
+    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    yellow = PatternFill(start_color="FFF59D", end_color="FFF59D", fill_type="solid")
+    red = PatternFill(start_color="F4B6C2", end_color="F4B6C2", fill_type="solid")
+    border = Border(
+        left=Side(style="medium", color="000000"),
+        right=Side(style="medium", color="000000"),
+        top=Side(style="medium", color="000000"),
+        bottom=Side(style="medium", color="000000"),
+    )
+
+    # Base columns.
+    base_headers = ["Артикул", "Название RU", "Описание RU", "category id", "раздел", "category id", "раздел"]
+    for i, h in enumerate(base_headers, start=1):
+        ws.cell(2, i).value = h
+
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=5)
+    ws.cell(1, 1).value = "ИСХОДНИК"
+    ws.merge_cells(start_row=1, start_column=6, end_row=1, end_column=7)
+    ws.cell(1, 6).value = "MAUDAU"
+
+    # Block layout.
+    blocks: list[dict] = []
+    col = 8
+
+    mapped_target_order = sorted(
+        mapped_groups.keys(),
+        key=lambda tid: min(order_index.get(sid, 10**9) for sid in mapped_groups[tid]),
+    )
+
+    for tid in mapped_target_order:
+        for sid in mapped_groups[tid]:
+            headers = source_headers.get(sid, [])
+            start = col
+            for h in headers:
+                ws.cell(2, col).value = h
+                col += 1
+            end = col - 1
+            source_name = source_category_names.get(sid, sid)
+            blocks.append(
+                {
+                    "type": "source",
+                    "source_id": sid,
+                    "start": start,
+                    "end": end,
+                    "title": f"{source_name} (наши)",
+                    "headers": headers,
+                }
+            )
+
+        mheaders = maudau_headers.get(tid, [])
+        if not mheaders:
+            mheaders = ["(параметры не найдены)"]
+        start = col
+        for h in mheaders:
+            ws.cell(2, col).value = h
+            col += 1
+        end = col - 1
+        meta = merchant_catalog.get(tid, {})
+        mname = meta.get("name_ru") or external_category_names.get(tid) or f"ID {tid}"
+        blocks.append(
+            {
+                "type": "maudau",
+                "target_id": tid,
+                "start": start,
+                "end": end,
+                "title": f"{mname} Maudau",
+                "headers": mheaders,
+            }
+        )
+
+    # Unmapped categories in the end.
+    for sid in later_sources + question_sources:
+        headers = source_headers.get(sid, [])
+        start = col
+        for h in headers:
+            ws.cell(2, col).value = h
+            col += 1
+        end = col - 1
+        source_name = source_category_names.get(sid, sid)
+        blocks.append(
+            {
+                "type": "source_unmapped",
+                "source_id": sid,
+                "start": start,
+                "end": end,
+                "title": f"{source_name} (наши)",
+                "headers": headers,
+            }
+        )
+
+    # Row1 titles + merged cells.
+    for block in blocks:
+        ws.merge_cells(start_row=1, start_column=block["start"], end_row=1, end_column=block["end"])
+        ws.cell(1, block["start"]).value = block["title"]
+
+    max_col = col - 1
+
+    # Header styling.
+    for r in [1, 2]:
+        for c in range(1, max_col + 1):
+            cell = ws.cell(r, c)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.border = border
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    # Header dropdown lists (allowed Maudau values).
+    list_ws = wb.create_sheet("_lists")
+    list_ws.sheet_state = "hidden"
+    list_col = 1
+    maudau_validations: dict[int, object] = {}
+    for block in blocks:
+        if block["type"] != "maudau":
+            continue
+        tid = block["target_id"]
+        meta = merchant_catalog.get(tid, {})
+        attrs = meta.get("attrs", {})
+        for offset, header in enumerate(block["headers"]):
+            c = block["start"] + offset
+            allowed = list(dict.fromkeys(attrs.get(header, {}).values()))
+            if not allowed:
+                continue
+            preview = ", ".join(allowed[:12])
+            ws.cell(2, c).comment = Comment(
+                f"Категория Maudau: {tid}\nПараметр: {header}\nЗначения (пример): {preview}",
+                "Codex",
+            )
+            col_letter = get_column_letter(list_col)
+            for idx, val in enumerate(allowed, start=1):
+                list_ws.cell(idx, list_col).value = val
+            rng = f"'{list_ws.title}'!${col_letter}$1:${col_letter}${len(allowed)}"
+            dv = DataValidation(type="list", formula1=rng, allow_blank=True)
+            dv.showDropDown = False
+            ws.add_data_validation(dv)
+            maudau_validations[c] = dv
+            list_col += 1
+
+    # Quick lookup for blocks.
+    source_blocks_by_sid: dict[str, dict] = {}
+    maudau_block_by_tid: dict[str, dict] = {}
+    for block in blocks:
+        if block["type"] == "source":
+            source_blocks_by_sid[block["source_id"]] = block
+        elif block["type"] == "maudau":
+            maudau_block_by_tid[block["target_id"]] = block
+        elif block["type"] == "source_unmapped":
+            source_blocks_by_sid[block["source_id"]] = block
+
+    # Offers ordering.
+    offers_rows.sort(key=lambda x: (order_index.get(x["source_id"], 10**9), normalize_key(x["article"])))
+
+    out_row = 3
+    for offer in offers_rows:
+        sid = offer["source_id"]
+        sname = offer["source_name"]
+        params = offer["params"]
+
+        if sid in SKIP_REMAP_SOURCE_CATEGORIES:
+            target_cell = "будет создана на maudau позже (пока не делаем с ней правок)"
+            target_name = ""
+            tid = ""
+        elif sid in QUESTION_SOURCE_CATEGORIES:
+            target_cell = "?"
+            target_name = ""
+            tid = ""
+        else:
+            if sid not in SOURCE_TO_MAUDAU_CATEGORY:
+                tid = ""
+                target_cell = "?"
+                target_name = ""
+            else:
+                tid = SOURCE_TO_MAUDAU_CATEGORY[sid]
+                target_cell = tid
+                target_name = merchant_catalog.get(tid, {}).get("name_ru", "") or external_category_names.get(tid, "")
+
+        ws.cell(out_row, 1).value = offer["article"]
+        ws.cell(out_row, 2).value = offer["name_ru"]
+        ws.cell(out_row, 3).value = offer["desc_ru"]
+        ws.cell(out_row, 4).value = sid
+        ws.cell(out_row, 5).value = sname
+        ws.cell(out_row, 6).value = target_cell
+        ws.cell(out_row, 7).value = target_name
+
+        # Fill source block.
+        sblock = source_blocks_by_sid.get(sid)
+        if sblock:
+            for i, h in enumerate(sblock["headers"]):
+                v = params.get(h, "")
+                if v:
+                    ws.cell(out_row, sblock["start"] + i).value = v
+
+        # Fill Maudau block (strict allowed mapping + coloring).
+        if tid and tid in maudau_block_by_tid and tid in merchant_catalog:
+            mblock = maudau_block_by_tid[tid]
+            meta = merchant_catalog.get(tid, {})
+            attr_lookup = meta.get("attr_lookup", {})
+            attrs = meta.get("attrs", {})
+
+            mapped_attrs: dict[str, str] = {}
+
+            for pname, pval in params.items():
+                mapped_name = map_param_name(pname, tid)
+                canonical_name = attr_lookup.get(normalize_key(mapped_name), mapped_name)
+                if canonical_name not in attrs:
+                    continue
+                normalized = apply_category_value_override(tid, canonical_name, pval)
+                strict = strict_allowed_value(normalized, attrs.get(canonical_name, {}))
+                if strict and canonical_name not in mapped_attrs:
+                    mapped_attrs[canonical_name] = strict
+
+            forced = collect_forced_attrs_for_source(sid, sname, tid, merchant_catalog)
+            for k, v in forced:
+                allowed_values = attrs.get(k, {})
+                strict = strict_allowed_value(v, allowed_values)
+                if strict:
+                    mapped_attrs[k] = strict
+
+            # Explicit cross-rules from "хар. пересечение.xlsx" logic.
+            cross = apply_cross_rules(tid, sid, sname, params, merchant_catalog)
+            for k, v in cross.items():
+                mapped_attrs[k] = v
+
+            # Fallback color from product name when source color param is non-specific
+            # (e.g. "Цветной"), but title contains a concrete allowed color.
+            if "Колір" in attrs and not mapped_attrs.get("Колір"):
+                inferred_color = infer_color_from_name(offer["name_ru"], attrs.get("Колір", {}))
+                strict_color = strict_allowed_value(inferred_color, attrs.get("Колір", {}))
+                if strict_color:
+                    mapped_attrs["Колір"] = strict_color
+
+            for i, h in enumerate(mblock["headers"]):
+                cell = ws.cell(out_row, mblock["start"] + i)
+                value = mapped_attrs.get(h, "")
+                if value:
+                    cell.value = value
+                    cell.fill = yellow
+                else:
+                    cell.value = ""
+                    cell.fill = red
+
+        out_row += 1
+
+    # Apply dropdowns to all populated data rows.
+    for c in range(1, max_col + 1):
+        dv = maudau_validations.get(c)
+        if dv is None:
+            continue
+        col_letter = get_column_letter(c)
+        dv.add(f"{col_letter}3:{col_letter}{max(3, out_row - 1)}")
+
+    # Column widths.
+    ws.column_dimensions["A"].width = 20
+    ws.column_dimensions["B"].width = 44
+    ws.column_dimensions["C"].width = 64
+    ws.column_dimensions["D"].width = 12
+    ws.column_dimensions["E"].width = 28
+    ws.column_dimensions["F"].width = 12
+    ws.column_dimensions["G"].width = 28
+    for c in range(8, max_col + 1):
+        col_letter = get_column_letter(c)
+        ws.column_dimensions[col_letter].width = 16
+
+    ws.freeze_panes = "A3"
     wb.save(str(output_path))
     print(f"📋 Единый товарный отчет сохранен: {output_path}")
 
@@ -1937,15 +2411,8 @@ def main() -> int:
             for c in root.xpath("//shop/categories/category")
         }
 
-        if merchant_catalog:
-            build_gap_report(root, merchant_catalog, MAPPING_REPORT_XLSX)
-            build_single_sheet_offer_report(
-                root,
-                merchant_catalog,
-                external_category_names,
-                FINAL_MAPPING_TEMPLATE_XLSX,
-                FINAL_MAPPING_REPORT_XLSX,
-            )
+        # XLSX summary/report generation is intentionally disabled in repo version.
+        # Feed update logic remains fully enabled below.
 
         kept = 0
         removed_missing = 0
@@ -1962,26 +2429,14 @@ def main() -> int:
             vendor = normalize_key(child_text(offer, "vendor"))
             key = resolve_offer_id_key(offer)
             rz = rozetka_idx.get(key)
-            heater_rule = HEATER_PRICE_RULES.get(source_category_id)
 
             keep_without_rozetka = source_category_id in KEEP_WITHOUT_ROZETKA_SOURCE_CATEGORIES
-            if rz is None and vendor not in ALLOWED_VENDORS and heater_rule is None and not keep_without_rozetka:
+            if rz is None and vendor not in ALLOWED_VENDORS and not keep_without_rozetka:
                 offer.getparent().remove(offer)
                 removed_missing += 1
                 continue
 
-            if heater_rule is not None:
-                # For heater categories, keep base feed prices and apply configured markups.
-                marked_price = apply_markup(child_text(offer, "price"), heater_rule["price_markup_pct"])
-                if set_or_create(offer, "price", marked_price):
-                    changed_price += 1
-
-                source_old = extract_old_price(offer)
-                if source_old:
-                    marked_old = apply_markup(source_old, heater_rule["old_price_markup_pct"])
-                    if set_or_create(offer, "old_price", marked_old):
-                        changed_other += 1
-            elif rz:
+            if rz:
                 if set_or_create(offer, "price", rz.get("price", "")):
                     changed_price += 1
                 if set_or_create(offer, "old_price", rz.get("old_price", "")):
@@ -2036,8 +2491,6 @@ def main() -> int:
 🔁 Обновлено старых цен и наличия: {changed_other}
 📦 Отправляем на MAUDAU товаров: {kept}
 📐 Размер итогового файла: {size_mb:.2f} MB
-📊 XLSX отчет: {MAPPING_REPORT_XLSX}
-📋 Финальный XLSX: {FINAL_MAPPING_REPORT_XLSX}
 ===== ГОТОВО ✅ ====="""
 
         print(report)
