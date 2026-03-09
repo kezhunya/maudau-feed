@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+import json
 import os
 import re
+import shutil
 import sys
 import time
 from collections import Counter, defaultdict
@@ -28,17 +30,41 @@ TMP_DIR = Path("/tmp/maudau_feed")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 BASE_XML = TMP_DIR / "base.xml"
 ROZETKA_XML = TMP_DIR / "rozetka.xml"
+BACKUP_DIR = MAUDAU_DIR / "backups"
+BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+BASE_BACKUP_XML = BACKUP_DIR / "aquafavorit_last.xml"
+ROZETKA_BACKUP_XML = BACKUP_DIR / "parserbiz_last.xml"
+SOURCES_STATE_JSON = BACKUP_DIR / "sources_state.json"
+SOURCE_STALE_HOURS = 72
+LOCAL_ENV_FILE = Path(__file__).resolve().parent / ".env"
+ROZETKA_BACKUP_CANDIDATES = [
+    Path(os.environ.get("ROZETKA_LOCAL_XML", "")).expanduser(),
+    ROZETKA_BACKUP_XML,
+    MAUDAU_DIR / "https-::parser.biz.ua:Aqua:api:export.aspx?action=rozetka&key=ui82P2VotQQamFTj512NQJK3HOlKvyv7",
+    MAUDAU_DIR / "rozetka.xml",
+    Path("rozetka.xml"),
+    ROZETKA_XML,
+]
+
+BASE_BACKUP_CANDIDATES = [
+    Path(os.environ.get("BASE_LOCAL_XML", "")).expanduser(),
+    BASE_BACKUP_XML,
+    MAUDAU_DIR / "aquafavorit.xml",
+    MAUDAU_DIR / "base.xml",
+    Path("aquafavorit.xml"),
+    BASE_XML,
+]
 
 MERCHANT_CATEGORIES_CANDIDATES = [
     Path(os.environ.get("MAUDAU_MERCHANT_CATEGORIES_XML", "")).expanduser(),
+    MAUDAU_DIR / "merchant_categories_2026-02-18-0837.xml",
+    Path("merchant_categories_2026-02-18-0837.xml"),
+    Path("/Volumes/X-Files/Загрузки рабочие/Maudau/2/merchant_categories_2026-02-18-0837.xml"),
+    Path("/Volumes/X-Files/Загрузки рабочие/Maudau/merchant_categories_2026-02-16-1420.xml"),
+    Path("merchant_categories_2026-02-16-1420.xml"),
     Path("/Users/Kezhunya/Downloads/merchant_categories_2026-03-09-1229.xml"),
     MAUDAU_DIR / "merchant_categories_2026-03-09-1229.xml",
     Path("merchant_categories_2026-03-09-1229.xml"),
-    Path("/Volumes/X-Files/Загрузки рабочие/Maudau/2/merchant_categories_2026-02-18-0837.xml"),
-    MAUDAU_DIR / "merchant_categories_2026-02-18-0837.xml",
-    Path("merchant_categories_2026-02-18-0837.xml"),
-    Path("/Volumes/X-Files/Загрузки рабочие/Maudau/merchant_categories_2026-02-16-1420.xml"),
-    Path("merchant_categories_2026-02-16-1420.xml"),
 ]
 
 # source category id -> maudau category id
@@ -417,6 +443,29 @@ GENERIC_VALUE_SYNONYMS = {
     "черная": "Черный",
 }
 
+def load_local_env(path: Path) -> None:
+    if not path.exists():
+        return
+    try:
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            if line.startswith("export "):
+                line = line[7:].strip()
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if not key or key in os.environ:
+                continue
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+                value = value[1:-1]
+            os.environ[key] = value
+    except Exception as exc:
+        print(f"⚠ Не удалось прочитать .env ({path}): {exc}")
+
+
+load_local_env(LOCAL_ENV_FILE)
 TG_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TG_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
@@ -451,6 +500,94 @@ def download_file(url: str, path: Path, title: str, retries: int = 5, timeout: i
             if attempt == retries:
                 raise
             time.sleep(5)
+
+
+def resolve_rozetka_backup_path() -> Path | None:
+    for candidate in ROZETKA_BACKUP_CANDIDATES:
+        if not str(candidate):
+            continue
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            try:
+                ET.parse(str(candidate))
+            except Exception:
+                continue
+            return candidate
+    return None
+
+
+def resolve_base_backup_path() -> Path | None:
+    for candidate in BASE_BACKUP_CANDIDATES:
+        if not str(candidate):
+            continue
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            try:
+                ET.parse(str(candidate))
+            except Exception:
+                continue
+            return candidate
+    return None
+
+
+def load_sources_state() -> dict:
+    if not SOURCES_STATE_JSON.exists():
+        return {}
+    try:
+        return json.loads(SOURCES_STATE_JSON.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_sources_state(state: dict) -> None:
+    try:
+        SOURCES_STATE_JSON.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as exc:
+        print(f"⚠ Не удалось сохранить sources_state.json: {exc}")
+
+
+def update_source_success(state: dict, source_key: str, used_path: Path) -> None:
+    state[source_key] = {
+        "last_success_ts": int(time.time()),
+        "last_success_path": str(used_path),
+        "first_failure_ts": None,
+        "last_failure_ts": None,
+    }
+
+
+def update_source_failure(state: dict, source_key: str) -> None:
+    now_ts = int(time.time())
+    item = state.get(source_key, {})
+    first_failure = item.get("first_failure_ts")
+    if not isinstance(first_failure, int):
+        first_failure = now_ts
+    item["first_failure_ts"] = first_failure
+    item["last_failure_ts"] = now_ts
+    state[source_key] = item
+
+
+def stale_alert_text(state: dict, source_key: str, source_label: str, backup_path: Path | None = None) -> str:
+    item = state.get(source_key, {})
+    ref_ts: int | None = None
+
+    last_success_ts = item.get("last_success_ts")
+    if isinstance(last_success_ts, int):
+        ref_ts = last_success_ts
+    elif backup_path and backup_path.exists():
+        try:
+            ref_ts = int(backup_path.stat().st_mtime)
+        except Exception:
+            ref_ts = None
+    else:
+        first_failure_ts = item.get("first_failure_ts")
+        if isinstance(first_failure_ts, int):
+            ref_ts = first_failure_ts
+
+    if ref_ts is None:
+        return ""
+
+    hours = (time.time() - ref_ts) / 3600.0
+    if hours >= SOURCE_STALE_HOURS:
+        return f"{source_label} недоступен 72 часа"
+    return ""
 
 
 def normalize_text(value: str | None) -> str:
@@ -619,7 +756,7 @@ def load_merchant_catalog(path: Path | None) -> dict[str, dict]:
     root = tree.getroot()
     catalog: dict[str, dict] = {}
 
-    for category in root.findall("category"):
+    for category in root.xpath(".//category[@portal_id]"):
         cid = normalize_text(category.get("portal_id"))
         if not cid:
             continue
@@ -1491,11 +1628,38 @@ def normalize_offer(offer: ET._Element, target_category_id: str, merchant_catalo
 
 
 def ensure_root_date(root: ET._Element) -> None:
-    if not normalize_text(root.get("date")):
-        root.set("date", datetime.now().strftime("%Y-%m-%d %H:%M"))
+    # Always refresh generation timestamp to match current feed snapshot.
+    root.set("date", datetime.now().strftime("%Y-%m-%d %H:%M"))
 
 
-def rebuild_categories(root: ET._Element, merchant_catalog: dict[str, dict]) -> None:
+def ensure_unique_offer_ids(root: ET._Element) -> int:
+    """Ensure all offer ids are unique and remain [A-Za-z0-9]."""
+    used: set[str] = set()
+    changed = 0
+    for offer in root.xpath("//offer"):
+        base = normalize_text(offer.get("id"))
+        if not base:
+            continue
+        if base not in used:
+            used.add(base)
+            continue
+
+        suffix = 2
+        candidate = f"{base}{suffix}"
+        while candidate in used:
+            suffix += 1
+            candidate = f"{base}{suffix}"
+        offer.set("id", candidate)
+        used.add(candidate)
+        changed += 1
+    return changed
+
+
+def rebuild_categories(
+    root: ET._Element,
+    merchant_catalog: dict[str, dict],
+    source_category_names: dict[str, str],
+) -> None:
     shop = root.find("shop")
     if shop is None:
         shop = ET.SubElement(root, "shop")
@@ -1511,7 +1675,11 @@ def rebuild_categories(root: ET._Element, merchant_catalog: dict[str, dict]) -> 
         if not cid or cid in known:
             continue
         c = ET.SubElement(categories, "category", id=cid)
-        c.text = merchant_catalog.get(cid, {}).get("name_ru") or cid
+        c.text = (
+            merchant_catalog.get(cid, {}).get("name_ru")
+            or source_category_names.get(cid)
+            or cid
+        )
         known.add(cid)
 
     shop.insert(0, categories)
@@ -2386,6 +2554,8 @@ def build_single_sheet_offer_report(
 def main() -> int:
     try:
         print("===== СТАРТ =====")
+        sources_state = load_sources_state()
+        stale_alerts: list[str] = []
 
         merchant_categories_path = resolve_merchant_categories_path()
         merchant_catalog = load_merchant_catalog(merchant_categories_path)
@@ -2398,13 +2568,52 @@ def main() -> int:
         if category_list_path:
             print(f"✅ Подключен список категорий Maudau (XLSX): {category_list_path}")
 
-        download_file(ROZETKA_FEED_URL, ROZETKA_XML, "Розетка XML")
-        download_file(BASE_FEED_URL, BASE_XML, "Maudau XML")
+        rozetka_path = ROZETKA_XML
+        rozetka_mode = "download"
+        try:
+            download_file(ROZETKA_FEED_URL, ROZETKA_XML, "Розетка XML")
+            shutil.copy2(ROZETKA_XML, ROZETKA_BACKUP_XML)
+            update_source_success(sources_state, "parserbiz", ROZETKA_XML)
+        except Exception as rozetka_exc:
+            backup = resolve_rozetka_backup_path()
+            if backup is None:
+                raise rozetka_exc
+            rozetka_path = backup
+            rozetka_mode = f"local_fallback ({backup})"
+            if backup.resolve() != ROZETKA_BACKUP_XML.resolve():
+                shutil.copy2(backup, ROZETKA_BACKUP_XML)
+            update_source_failure(sources_state, "parserbiz")
+            print(f"⚠ Розетка недоступна, используем локальный файл: {backup}")
+            alert = stale_alert_text(sources_state, "parserbiz", "Исходник Parser.biz", backup)
+            if alert:
+                stale_alerts.append(alert)
 
-        rozetka_tree = ET.parse(str(ROZETKA_XML))
+        base_path = BASE_XML
+        base_mode = "download"
+        try:
+            download_file(BASE_FEED_URL, BASE_XML, "Maudau XML")
+            shutil.copy2(BASE_XML, BASE_BACKUP_XML)
+            update_source_success(sources_state, "aquafavorit", BASE_XML)
+        except Exception as base_exc:
+            backup = resolve_base_backup_path()
+            if backup is None:
+                raise base_exc
+            base_path = backup
+            base_mode = f"local_fallback ({backup})"
+            if backup.resolve() != BASE_BACKUP_XML.resolve():
+                shutil.copy2(backup, BASE_BACKUP_XML)
+            update_source_failure(sources_state, "aquafavorit")
+            print(f"⚠ AquaFavorit недоступен, используем локальный файл: {backup}")
+            alert = stale_alert_text(sources_state, "aquafavorit", "Исходник Aquafavorit", backup)
+            if alert:
+                stale_alerts.append(alert)
+
+        save_sources_state(sources_state)
+
+        rozetka_tree = ET.parse(str(rozetka_path))
         rozetka_idx = build_rozetka_index(rozetka_tree)
 
-        tree = ET.parse(str(BASE_XML))
+        tree = ET.parse(str(base_path))
         root = tree.getroot()
         source_category_names = {
             normalize_text(c.get("id")): normalize_text(c.text)
@@ -2471,7 +2680,8 @@ def main() -> int:
             kept += 1
 
         ensure_root_date(root)
-        rebuild_categories(root, merchant_catalog)
+        deduped_ids = ensure_unique_offer_ids(root)
+        rebuild_categories(root, merchant_catalog, source_category_names)
 
         tree.write(str(OUTPUT_XML), encoding="UTF-8", xml_declaration=True, pretty_print=False)
 
@@ -2487,11 +2697,17 @@ def main() -> int:
 ❓ Офферов с категорией вне merchant_categories (оставлены в фиде): {unresolved_target_category}
 🗂 Переназначено категорий: {changed_category}
 🏷 Добавлено/обновлено типовых параметров: {changed_params}
+🆔 Скорректировано дублирующихся offer id: {deduped_ids}
 💲 Обновлено цен: {changed_price}
 🔁 Обновлено старых цен и наличия: {changed_other}
+🧰 Режим Rozetka: {rozetka_mode}
+🧰 Режим AquaFavorit: {base_mode}
 📦 Отправляем на MAUDAU товаров: {kept}
 📐 Размер итогового файла: {size_mb:.2f} MB
 ===== ГОТОВО ✅ ====="""
+
+        if stale_alerts:
+            report += "\n⚠ Источники недоступны более 72ч:\n" + "\n".join(stale_alerts)
 
         print(report)
         send_telegram(report)
