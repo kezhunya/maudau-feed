@@ -1928,7 +1928,8 @@ def rebuild_categories(
                 extra_ids = [tid]
 
         for tid in extra_ids:
-            add_category(tid)
+            if tid in merchant_catalog or tid in MAUDAU_CATEGORY_NAME_OVERRIDES:
+                add_category(tid)
 
     shop.insert(0, categories)
 
@@ -2870,6 +2871,7 @@ def main() -> int:
         removed_missing = 0
         removed_invalid = 0
         unresolved_target_category = 0
+        removed_unknown_target_category = 0
         changed_price = 0
         changed_other = 0
         changed_category = 0
@@ -2908,7 +2910,12 @@ def main() -> int:
                 removed_invalid += 1
                 continue
             if merchant_catalog and not target_known:
+                # Temporary safe mode: do not export offers for categories
+                # that are not yet present in MAUDAU merchant categories.
+                offer.getparent().remove(offer)
                 unresolved_target_category += 1
+                removed_unknown_target_category += 1
+                continue
 
             if source_category_id != child_text(offer, "categoryId"):
                 changed_category += 1
@@ -2941,7 +2948,8 @@ def main() -> int:
 ✅ Maudau XML загружен
 ❌ Удалено из файла (не в Розетке, кроме Мойдодыр/Dusel): {removed_missing}
 ⚠ Удалено как невалидных для MAUDAU: {removed_invalid}
-❓ Офферов с категорией вне merchant_categories (оставлены в фиде): {unresolved_target_category}
+🧩 Исключено (категория еще не заведена в MAUDAU): {removed_unknown_target_category}
+❓ Офферов с категорией вне merchant_categories (обнаружено): {unresolved_target_category}
 🗂 Переназначено категорий: {changed_category}
 🏷 Добавлено/обновлено типовых параметров: {changed_params}
 🆔 Скорректировано дублирующихся offer id: {deduped_ids}
