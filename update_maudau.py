@@ -26,6 +26,11 @@ CATEGORY_LIST_CANDIDATES = [
     MAUDAU_DIR / "categories-2026-02-18-0752.xlsx",
     Path("categories-2026-02-18-0752.xlsx"),
 ]
+BRANDS_LIST_CANDIDATES = [
+    Path("/Volumes/X-Files/Загрузки рабочие/brands-2026-03-09-2147.xlsx"),
+    MAUDAU_DIR / "brands-2026-03-09-2147.xlsx",
+    Path("brands-2026-03-09-2147.xlsx"),
+]
 
 TMP_DIR = Path("/tmp/maudau_feed")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -806,6 +811,41 @@ def normalize_old_price(offer: ET._Element) -> None:
         node.text = old_value
 
 
+def enrich_vendor_country_from_params(offer: ET._Element) -> int:
+    changed = 0
+    brand = (
+        find_param_value(offer, "Бренд")
+        or find_param_value(offer, "Бренд товара")
+        or find_param_value(offer, "Торговая марка")
+    )
+    reg_country = (
+        find_param_value(offer, "Страна регистрации бренда")
+        or find_param_value(offer, "Країна реєстрації бренду")
+    )
+
+    if brand:
+        if set_or_create(offer, "vendor", compact_text(brand)):
+            changed += 1
+    if reg_country:
+        # Requested mapping: Країна-виробник = Страна регистрации бренда.
+        if set_or_create(offer, "country", compact_text(reg_country)):
+            changed += 1
+
+    return changed
+
+
+def normalize_vendor_by_catalog(offer: ET._Element, brands_catalog: dict[str, str]) -> bool:
+    if not brands_catalog:
+        return False
+    vendor = child_text(offer, "vendor")
+    if not vendor:
+        return False
+    canonical = brands_catalog.get(normalize_text_key(vendor))
+    if not canonical:
+        return False
+    return set_or_create(offer, "vendor", canonical)
+
+
 def resolve_merchant_categories_paths() -> list[Path]:
     paths: list[Path] = []
     seen: set[str] = set()
@@ -920,6 +960,41 @@ def load_category_names_from_xlsx(path: Path | None) -> dict[str, str]:
         if cid and name_ru:
             names[cid] = name_ru
     return names
+
+
+def resolve_brand_list_path() -> Path | None:
+    for candidate in BRANDS_LIST_CANDIDATES:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def load_brands_catalog(path: Path | None) -> dict[str, str]:
+    if path is None:
+        return {}
+    try:
+        from openpyxl import load_workbook
+    except Exception:
+        return {}
+
+    wb = load_workbook(str(path), read_only=True)
+    sheet = wb["Sheet1"] if "Sheet1" in wb.sheetnames else wb[wb.sheetnames[0]]
+
+    result: dict[str, str] = {}
+    for idx, row in enumerate(sheet.iter_rows(min_row=1, values_only=True), start=1):
+        if not row:
+            continue
+        raw = row[0]
+        if raw is None:
+            continue
+        brand = normalize_text(str(raw))
+        if not brand:
+            continue
+        # Skip common header row(s).
+        if idx == 1 and normalize_key(brand) in {"назва бренду", "бренд", "brand"}:
+            continue
+        result.setdefault(normalize_text_key(brand), brand)
+    return result
 
 
 def normalize_number(num: float) -> str:
@@ -1833,9 +1908,16 @@ def remap_offer_category(
     return True, source_id, target_id, forced_changes, target_known
 
 
-def normalize_offer(offer: ET._Element, target_category_id: str, merchant_catalog: dict[str, dict]) -> bool:
+def normalize_offer(
+    offer: ET._Element,
+    target_category_id: str,
+    merchant_catalog: dict[str, dict],
+    brands_catalog: dict[str, str],
+) -> bool:
     normalize_name_description(offer)
     normalize_old_price(offer)
+    enrich_vendor_country_from_params(offer)
+    normalize_vendor_by_catalog(offer, brands_catalog)
     cleanup_params(offer, target_category_id, merchant_catalog)
     cleanup_pictures(offer)
     offer.attrib.pop("group_id", None)
@@ -2806,6 +2888,8 @@ def main() -> int:
             merchant_catalog = merge_merchant_catalogs(merchant_catalog, load_merchant_catalog(p))
         category_list_path = resolve_category_list_path()
         external_category_names = load_category_names_from_xlsx(category_list_path)
+        brand_list_path = resolve_brand_list_path()
+        brands_catalog = load_brands_catalog(brand_list_path)
         if merchant_categories_paths:
             print("✅ Подключены справочники категорий Maudau:")
             for p in merchant_categories_paths:
@@ -2814,6 +2898,8 @@ def main() -> int:
             print("⚠ merchant_categories.xml не найден, строгая проверка категорий и отчет отключены")
         if category_list_path:
             print(f"✅ Подключен список категорий Maudau (XLSX): {category_list_path}")
+        if brand_list_path:
+            print(f"✅ Подключен список брендов Maudau (XLSX): {brand_list_path} [{len(brands_catalog)}]")
 
         rozetka_path = ROZETKA_XML
         rozetka_mode = "download"
@@ -2922,7 +3008,7 @@ def main() -> int:
             changed_params += forced_changes
 
             target_category_id = child_text(offer, "categoryId")
-            if not normalize_offer(offer, target_category_id, merchant_catalog):
+            if not normalize_offer(offer, target_category_id, merchant_catalog, brands_catalog):
                 offer.getparent().remove(offer)
                 removed_invalid += 1
                 continue
