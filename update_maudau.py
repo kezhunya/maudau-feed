@@ -31,6 +31,11 @@ BRANDS_LIST_CANDIDATES = [
     MAUDAU_DIR / "brands-2026-03-09-2147.xlsx",
     Path("brands-2026-03-09-2147.xlsx"),
 ]
+COUNTRIES_LIST_CANDIDATES = [
+    Path("/Volumes/X-Files/Загрузки рабочие/countries-2026-03-10-1651.xlsx"),
+    MAUDAU_DIR / "countries-2026-03-10-1651.xlsx",
+    Path("countries-2026-03-10-1651.xlsx"),
+]
 
 TMP_DIR = Path("/tmp/maudau_feed")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -174,6 +179,26 @@ MAUDAU_CATEGORY_NAME_OVERRIDES = {
     "3175": "Электрические ТЭНы для сушилок для полотенец",
     "3189": "Аксессуары к сушилке для полотенец и радиаторов",
     "3172": "Сифоны",
+}
+
+COUNTRY_ALIASES_RU_TO_UA = {
+    "германия": "Німеччина",
+    "польша": "Польща",
+    "украина": "Україна",
+    "чехия": "Чехія",
+    "испания": "Іспанія",
+    "турция": "Туреччина",
+    "италия": "Італія",
+    "швейцария": "Швейцарія",
+    "индия": "Індія",
+    "австрия": "Австрія",
+    "венгрия": "Угорщина",
+    "дания": "Данія",
+    "болгария": "Болгарія",
+    "словения": "Словенія",
+    "португалия": "Португалія",
+    "великобритания": "Великобританія",
+    "великобританія": "Великобританія",
 }
 
 # Categories explicitly marked as "will be created on Maudau later (no edits now)".
@@ -846,6 +871,24 @@ def normalize_vendor_by_catalog(offer: ET._Element, brands_catalog: dict[str, st
     return set_or_create(offer, "vendor", canonical)
 
 
+def normalize_country_by_catalog(offer: ET._Element, countries_catalog: dict[str, str]) -> bool:
+    if not countries_catalog:
+        return False
+    country = child_text(offer, "country")
+    if not country:
+        return False
+
+    key = normalize_text_key(country)
+    canonical = countries_catalog.get(key)
+    if not canonical:
+        alias = COUNTRY_ALIASES_RU_TO_UA.get(normalize_key(country))
+        if alias:
+            canonical = countries_catalog.get(normalize_text_key(alias), alias)
+    if not canonical:
+        return False
+    return set_or_create(offer, "country", canonical)
+
+
 def resolve_merchant_categories_paths() -> list[Path]:
     paths: list[Path] = []
     seen: set[str] = set()
@@ -994,6 +1037,40 @@ def load_brands_catalog(path: Path | None) -> dict[str, str]:
         if idx == 1 and normalize_key(brand) in {"назва бренду", "бренд", "brand"}:
             continue
         result.setdefault(normalize_text_key(brand), brand)
+    return result
+
+
+def resolve_countries_list_path() -> Path | None:
+    for candidate in COUNTRIES_LIST_CANDIDATES:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def load_countries_catalog(path: Path | None) -> dict[str, str]:
+    if path is None:
+        return {}
+    try:
+        from openpyxl import load_workbook
+    except Exception:
+        return {}
+
+    wb = load_workbook(str(path), read_only=True)
+    sheet = wb["Sheet1"] if "Sheet1" in wb.sheetnames else wb[wb.sheetnames[0]]
+
+    result: dict[str, str] = {}
+    for idx, row in enumerate(sheet.iter_rows(min_row=1, values_only=True), start=1):
+        if not row:
+            continue
+        raw = row[0]
+        if raw is None:
+            continue
+        country = normalize_text(str(raw))
+        if not country:
+            continue
+        if idx == 1 and normalize_key(country) in {"назва країни", "країна", "country"}:
+            continue
+        result.setdefault(normalize_text_key(country), country)
     return result
 
 
@@ -1913,11 +1990,13 @@ def normalize_offer(
     target_category_id: str,
     merchant_catalog: dict[str, dict],
     brands_catalog: dict[str, str],
+    countries_catalog: dict[str, str],
 ) -> bool:
     normalize_name_description(offer)
     normalize_old_price(offer)
     enrich_vendor_country_from_params(offer)
     normalize_vendor_by_catalog(offer, brands_catalog)
+    normalize_country_by_catalog(offer, countries_catalog)
     cleanup_params(offer, target_category_id, merchant_catalog)
     cleanup_pictures(offer)
     offer.attrib.pop("group_id", None)
@@ -2890,6 +2969,8 @@ def main() -> int:
         external_category_names = load_category_names_from_xlsx(category_list_path)
         brand_list_path = resolve_brand_list_path()
         brands_catalog = load_brands_catalog(brand_list_path)
+        countries_list_path = resolve_countries_list_path()
+        countries_catalog = load_countries_catalog(countries_list_path)
         if merchant_categories_paths:
             print("✅ Подключены справочники категорий Maudau:")
             for p in merchant_categories_paths:
@@ -2900,6 +2981,8 @@ def main() -> int:
             print(f"✅ Подключен список категорий Maudau (XLSX): {category_list_path}")
         if brand_list_path:
             print(f"✅ Подключен список брендов Maudau (XLSX): {brand_list_path} [{len(brands_catalog)}]")
+        if countries_list_path:
+            print(f"✅ Подключен список стран Maudau (XLSX): {countries_list_path} [{len(countries_catalog)}]")
 
         rozetka_path = ROZETKA_XML
         rozetka_mode = "download"
@@ -3008,7 +3091,13 @@ def main() -> int:
             changed_params += forced_changes
 
             target_category_id = child_text(offer, "categoryId")
-            if not normalize_offer(offer, target_category_id, merchant_catalog, brands_catalog):
+            if not normalize_offer(
+                offer,
+                target_category_id,
+                merchant_catalog,
+                brands_catalog,
+                countries_catalog,
+            ):
                 offer.getparent().remove(offer)
                 removed_invalid += 1
                 continue
