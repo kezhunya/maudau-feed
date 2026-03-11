@@ -8,6 +8,7 @@ import time
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import requests
 from lxml import etree as ET
@@ -646,6 +647,10 @@ def source_status_block(title: str, loaded_from_source: bool, backup_path: Path 
     if loaded_from_source:
         return f"▶ Загрузка: {title}\n✅ {title} загружен"
     return f"⛔️ {title} не загружен - взят из backup ({backup_date_str(backup_path)})"
+
+
+def now_kyiv() -> datetime:
+    return datetime.now(ZoneInfo("Europe/Kyiv"))
 
 
 def normalize_text(value: str | None) -> str:
@@ -2032,7 +2037,7 @@ def normalize_offer(
 
 def ensure_root_date(root: ET._Element) -> None:
     # Always refresh generation timestamp to match current feed snapshot.
-    root.set("date", datetime.now().strftime("%Y-%m-%d %H:%M"))
+    root.set("date", now_kyiv().strftime("%Y-%m-%d %H:%M"))
 
 
 def ensure_unique_offer_ids(root: ET._Element) -> int:
