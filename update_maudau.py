@@ -48,6 +48,8 @@ ROZETKA_BACKUP_XML = BACKUP_DIR / "parserbiz_last.xml"
 SOURCES_STATE_JSON = BACKUP_DIR / "sources_state.json"
 SOURCE_STALE_HOURS = 72
 LOCAL_ENV_FILE = Path(__file__).resolve().parent / ".env"
+ROZETKA_DOWNLOAD_TIMEOUT_SEC = int(os.environ.get("ROZETKA_DOWNLOAD_TIMEOUT_SEC", "240"))
+BASE_DOWNLOAD_TIMEOUT_SEC = int(os.environ.get("BASE_DOWNLOAD_TIMEOUT_SEC", "180"))
 ROZETKA_BACKUP_CANDIDATES = [
     Path(os.environ.get("ROZETKA_LOCAL_XML", "")).expanduser(),
     ROZETKA_BACKUP_XML,
@@ -629,6 +631,21 @@ def stale_alert_text(state: dict, source_key: str, source_label: str, backup_pat
     if hours >= SOURCE_STALE_HOURS:
         return f"{source_label} недоступен 72 часа"
     return ""
+
+
+def backup_date_str(path: Path | None) -> str:
+    if path is None:
+        return datetime.now().strftime("%d.%m.%Y")
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime).strftime("%d.%m.%Y")
+    except Exception:
+        return datetime.now().strftime("%d.%m.%Y")
+
+
+def source_status_block(title: str, loaded_from_source: bool, backup_path: Path | None = None) -> str:
+    if loaded_from_source:
+        return f"▶ Загрузка: {title}\n✅ {title} загружен"
+    return f"⛔️ {title} не загружен - взят из backup ({backup_date_str(backup_path)})"
 
 
 def normalize_text(value: str | None) -> str:
@@ -2985,9 +3002,15 @@ def main() -> int:
             print(f"✅ Подключен список стран Maudau (XLSX): {countries_list_path} [{len(countries_catalog)}]")
 
         rozetka_path = ROZETKA_XML
-        rozetka_mode = "download"
+        rozetka_loaded_from_source = True
+        rozetka_fallback_path: Path | None = None
         try:
-            download_file(ROZETKA_FEED_URL, ROZETKA_XML, "Розетка XML")
+            download_file(
+                ROZETKA_FEED_URL,
+                ROZETKA_XML,
+                "Розетка XML",
+                timeout=ROZETKA_DOWNLOAD_TIMEOUT_SEC,
+            )
             shutil.copy2(ROZETKA_XML, ROZETKA_BACKUP_XML)
             update_source_success(sources_state, "parserbiz", ROZETKA_XML)
         except Exception as rozetka_exc:
@@ -2995,7 +3018,8 @@ def main() -> int:
             if backup is None:
                 raise rozetka_exc
             rozetka_path = backup
-            rozetka_mode = f"local_fallback ({backup})"
+            rozetka_loaded_from_source = False
+            rozetka_fallback_path = backup
             if backup.resolve() != ROZETKA_BACKUP_XML.resolve():
                 shutil.copy2(backup, ROZETKA_BACKUP_XML)
             update_source_failure(sources_state, "parserbiz")
@@ -3005,9 +3029,15 @@ def main() -> int:
                 stale_alerts.append(alert)
 
         base_path = BASE_XML
-        base_mode = "download"
+        base_loaded_from_source = True
+        base_fallback_path: Path | None = None
         try:
-            download_file(BASE_FEED_URL, BASE_XML, "Maudau XML")
+            download_file(
+                BASE_FEED_URL,
+                BASE_XML,
+                "Maudau XML",
+                timeout=BASE_DOWNLOAD_TIMEOUT_SEC,
+            )
             shutil.copy2(BASE_XML, BASE_BACKUP_XML)
             update_source_success(sources_state, "aquafavorit", BASE_XML)
         except Exception as base_exc:
@@ -3015,7 +3045,8 @@ def main() -> int:
             if backup is None:
                 raise base_exc
             base_path = backup
-            base_mode = f"local_fallback ({backup})"
+            base_loaded_from_source = False
+            base_fallback_path = backup
             if backup.resolve() != BASE_BACKUP_XML.resolve():
                 shutil.copy2(backup, BASE_BACKUP_XML)
             update_source_failure(sources_state, "aquafavorit")
@@ -3116,22 +3147,23 @@ def main() -> int:
 
         size_mb = OUTPUT_XML.stat().st_size / (1024 * 1024)
 
+        source_header = "\n".join(
+            [
+                source_status_block("Розетка XML", rozetka_loaded_from_source, rozetka_fallback_path),
+                source_status_block("Maudau XML", base_loaded_from_source, base_fallback_path),
+            ]
+        )
+
         report = f"""===== СТАРТ =====
-▶ Загрузка: Розетка XML
-✅ Розетка XML загружен
-▶ Загрузка: Maudau XML
-✅ Maudau XML загружен
+{source_header}
 ❌ Удалено из файла (не в Розетке, кроме Мойдодыр/Dusel): {removed_missing}
 ⚠ Удалено как невалидных для MAUDAU: {removed_invalid}
 🧩 Исключено (категория еще не заведена в MAUDAU): {removed_unknown_target_category}
 ❓ Офферов с категорией вне merchant_categories (обнаружено): {unresolved_target_category}
 🗂 Переназначено категорий: {changed_category}
-🏷 Добавлено/обновлено типовых параметров: {changed_params}
 🆔 Скорректировано дублирующихся offer id: {deduped_ids}
 💲 Обновлено цен: {changed_price}
 🔁 Обновлено старых цен и наличия: {changed_other}
-🧰 Режим Rozetka: {rozetka_mode}
-🧰 Режим AquaFavorit: {base_mode}
 📦 Отправляем на MAUDAU товаров: {kept}
 📐 Размер итогового файла: {size_mb:.2f} MB
 ===== ГОТОВО ✅ ====="""
