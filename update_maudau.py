@@ -3162,10 +3162,6 @@ def main() -> int:
         report = f"""===== СТАРТ =====
 {source_header}
 ❌ Удалено из файла (не в Розетке, кроме Мойдодыр/Dusel): {removed_missing}
-⚠ Удалено как невалидных для MAUDAU: {removed_invalid}
-🧩 Исключено (категория еще не заведена в MAUDAU): {removed_unknown_target_category}
-❓ Офферов с категорией вне merchant_categories (обнаружено): {unresolved_target_category}
-🗂 Переназначено категорий: {changed_category}
 🆔 Скорректировано дублирующихся offer id: {deduped_ids}
 💲 Обновлено цен: {changed_price}
 🔁 Обновлено старых цен и наличия: {changed_other}
