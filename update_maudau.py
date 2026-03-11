@@ -3159,12 +3159,14 @@ def main() -> int:
             ]
         )
 
-        report = f"""===== СТАРТ =====
+        report = f"""===== 🛍MauDau🛍=====
 {source_header}
+
 ❌ Удалено из файла (не в Розетке, кроме Мойдодыр/Dusel): {removed_missing}
 🆔 Скорректировано дублирующихся offer id: {deduped_ids}
 💲 Обновлено цен: {changed_price}
 🔁 Обновлено старых цен и наличия: {changed_other}
+
 📦 Отправляем на MAUDAU товаров: {kept}
 📐 Размер итогового файла: {size_mb:.2f} MB
 ===== ГОТОВО ✅ ====="""
