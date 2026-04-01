@@ -462,8 +462,6 @@ RANGE_SIMPLE_RE = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*[-–]\s*(\d+(?:[.,]\d+)?
 RANGE_UPPER_RE = re.compile(r"^\s*(до)\s*(\d+(?:[.,]\d+)?)\s*([^\d]*)$", re.IGNORECASE)
 RANGE_LOWER_RE = re.compile(r"^\s*(более|понад|більше)\s*(\d+(?:[.,]\d+)?)\s*([^\d]*)$", re.IGNORECASE)
 SCALAR_WITH_UNIT_RE = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*([^\d]*)$", re.IGNORECASE)
-MAX_DESC_LEN = 10000
-
 # Generic value normalization hints (RU/UA forms and common endings).
 GENERIC_VALUE_SYNONYMS = {
     "отдельностоящая": "Отдельно стоящие",
@@ -832,9 +830,9 @@ def normalize_name_description(offer: ET._Element) -> None:
         offer.remove(desc)
 
     if desc_ru is not None:
-        desc_ru.text = compact_text(HTML_TAG_RE.sub(" ", desc_ru.text or ""))[:MAX_DESC_LEN]
+        desc_ru.text = compact_text(HTML_TAG_RE.sub(" ", desc_ru.text or ""))
     if desc_ua is not None:
-        desc_ua.text = compact_text(HTML_TAG_RE.sub(" ", desc_ua.text or ""))[:MAX_DESC_LEN]
+        desc_ua.text = compact_text(HTML_TAG_RE.sub(" ", desc_ua.text or ""))
 
 
 def normalize_old_price(offer: ET._Element) -> None:
