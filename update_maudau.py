@@ -462,7 +462,7 @@ RANGE_SIMPLE_RE = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*[-–]\s*(\d+(?:[.,]\d+)?
 RANGE_UPPER_RE = re.compile(r"^\s*(до)\s*(\d+(?:[.,]\d+)?)\s*([^\d]*)$", re.IGNORECASE)
 RANGE_LOWER_RE = re.compile(r"^\s*(более|понад|більше)\s*(\d+(?:[.,]\d+)?)\s*([^\d]*)$", re.IGNORECASE)
 SCALAR_WITH_UNIT_RE = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*([^\d]*)$", re.IGNORECASE)
-MAX_DESC_LEN = 400
+MAX_DESC_LEN = 10000
 
 # Generic value normalization hints (RU/UA forms and common endings).
 GENERIC_VALUE_SYNONYMS = {
