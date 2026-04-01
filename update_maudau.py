@@ -2076,11 +2076,15 @@ def rebuild_categories(
 
     categories = ET.Element("categories")
     known = set()
+    mapped_portal_ids = set(SOURCE_TO_MAUDAU_CATEGORY.values()) | set(MAUDAU_CATEGORY_NAME_OVERRIDES.keys())
 
     def add_category(cid: str) -> None:
         if not cid or cid in known:
             return
-        c = ET.SubElement(categories, "category", id=cid)
+        attrs = {"id": cid}
+        if cid in mapped_portal_ids or cid in merchant_catalog:
+            attrs["portal_id"] = cid
+        c = ET.SubElement(categories, "category", **attrs)
         c.text = (
             MAUDAU_CATEGORY_NAME_OVERRIDES.get(cid)
             or merchant_catalog.get(cid, {}).get("name_ru")
