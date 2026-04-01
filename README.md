@@ -1,12 +1,12 @@
 # Maudau Feed
 
-Этот репозиторий генерирует файл `update_maudau.xml` для MAUDAU.
+Этот репозиторий генерирует файл `update_maudau.xml` для MAUDAU и публикует его в `Cloudflare R2`.
 
 ## Файлы
 
 - `update_maudau.py` - основной скрипт генерации фида.
 - `.github/workflows/update-maudau-feed.yml` - автозапуск по расписанию + ручной запуск.
-- `update_maudau.xml` - итоговый файл (создается скриптом).
+- `update_maudau.xml` - итоговый файл (создается скриптом локально и в GitHub Actions, затем выгружается в `Cloudflare R2`).
 
 ## Что делает скрипт
 
@@ -105,12 +105,45 @@ ROZETKA:
 - `*_API_TOKEN_KEY` (например `token` или `X-Auth-Token`)
 - `*_API_BODY` (опционально JSON-строка, например `{"action":"generate"}`)
 
-## Публикация через GitHub Pages
+## Публикация через Cloudflare R2
 
-После первого успешного workflow файл будет доступен по адресу:
-`https://kezhunya.github.io/maudau-feed/update_maudau.xml`
+Workflow больше не коммитит `update_maudau.xml` в репозиторий. После генерации файл загружается в публичный bucket `Cloudflare R2`.
 
-В `Settings -> Pages` выставьте:
-- `Source`: `Deploy from a branch`
-- `Branch`: `main`
-- `Folder`: `/ (root)`
+### Что нужно настроить в Cloudflare
+
+1. Создайте bucket, например `maudau-feed`.
+2. Включите для него публичную раздачу:
+   - либо через `r2.dev`
+   - либо через свой домен/поддомен.
+3. Создайте `R2 API token` c правами на запись в этот bucket.
+
+### Какие GitHub Secrets нужны
+
+В репозитории `Settings -> Secrets and variables -> Actions` добавьте:
+
+- `CF_R2_ACCOUNT_ID`
+- `CF_R2_ACCESS_KEY_ID`
+- `CF_R2_SECRET_ACCESS_KEY`
+- `CF_R2_BUCKET_NAME`
+
+Итоговый объект загружается в bucket как:
+
+```text
+update_maudau.xml
+```
+
+Если bucket публичный, финальная ссылка будет вида:
+
+```text
+https://<ваш-public-url>/update_maudau.xml
+```
+
+Примеры:
+- `https://pub-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.r2.dev/update_maudau.xml`
+- `https://feed.example.com/update_maudau.xml`
+
+### Что делает workflow
+
+1. Генерирует `update_maudau.xml`.
+2. Проверяет наличие обязательных `GitHub Secrets` для `R2`.
+3. Загружает файл в `Cloudflare R2` через `S3-compatible API`.

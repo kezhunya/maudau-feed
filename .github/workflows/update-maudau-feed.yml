@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   update:
@@ -34,21 +34,36 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests lxml
+          pip install requests lxml awscli
 
       - name: Run update_maudau.py
         run: python update_maudau.py
 
-      - name: Commit and push updated XML
+      - name: Validate Cloudflare R2 configuration
+        env:
+          CF_R2_ACCOUNT_ID: ${{ secrets.CF_R2_ACCOUNT_ID }}
+          CF_R2_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_KEY_ID }}
+          CF_R2_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
+          CF_R2_BUCKET_NAME: ${{ secrets.CF_R2_BUCKET_NAME }}
         run: |
-          SIZE_BYTES=$(wc -c < update_maudau.xml)
-          LIMIT_BYTES=$((95 * 1024 * 1024))
-          if [ "$SIZE_BYTES" -ge "$LIMIT_BYTES" ]; then
-            echo "update_maudau.xml is too large: ${SIZE_BYTES} bytes"
-            exit 1
-          fi
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add update_maudau.xml
-          git commit -m "Update Maudau XML" || echo "No changes to commit"
-          git push
+          for key in CF_R2_ACCOUNT_ID CF_R2_ACCESS_KEY_ID CF_R2_SECRET_ACCESS_KEY CF_R2_BUCKET_NAME; do
+            if [ -z "${!key}" ]; then
+              echo "Missing required GitHub secret: ${key}"
+              exit 1
+            fi
+          done
+
+      - name: Upload XML to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          CF_R2_ACCOUNT_ID: ${{ secrets.CF_R2_ACCOUNT_ID }}
+          CF_R2_BUCKET_NAME: ${{ secrets.CF_R2_BUCKET_NAME }}
+          CF_R2_OBJECT_KEY: update_maudau.xml
+        run: |
+          test -s update_maudau.xml
+          aws s3 cp update_maudau.xml "s3://${CF_R2_BUCKET_NAME}/${CF_R2_OBJECT_KEY}" \
+            --endpoint-url "https://${CF_R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --content-type "application/xml; charset=utf-8" \
+            --cache-control "no-store, max-age=0"
