@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import csv
 import json
 import os
 import re
@@ -15,6 +16,10 @@ from lxml import etree as ET
 
 BASE_FEED_URL = "https://aqua-favorit.com.ua/content/export/b0026fd850ce11bb0cb7610e252d7dae.xml"
 ROZETKA_FEED_URL = "http://parser.biz.ua/Aqua/api/export.aspx?action=rozetka&key=ui82P2VotQQamFTj512NQJK3HOlKvyv7"
+GOOGLE_TABLE_CSV_URL = (
+    "https://docs.google.com/spreadsheets/d/"
+    "1S6L2iLlvJzDf2vNBoSPRwEuoEIP_muojrT-00KshR_c/gviz/tq?tqx=out:csv&gid=0"
+)
 MAUDAU_DIR = Path(__file__).resolve().parent / "maudau"
 MAUDAU_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_XML = Path(__file__).resolve().parent / "update_maudau.xml"
@@ -51,6 +56,7 @@ SOURCE_STALE_HOURS = 72
 LOCAL_ENV_FILE = Path(__file__).resolve().parent / ".env"
 ROZETKA_DOWNLOAD_TIMEOUT_SEC = int(os.environ.get("ROZETKA_DOWNLOAD_TIMEOUT_SEC", "240"))
 BASE_DOWNLOAD_TIMEOUT_SEC = int(os.environ.get("BASE_DOWNLOAD_TIMEOUT_SEC", "180"))
+GOOGLE_TABLE_TIMEOUT_SEC = int(os.environ.get("GOOGLE_TABLE_TIMEOUT_SEC", "60"))
 ROZETKA_BACKUP_CANDIDATES = [
     Path(os.environ.get("ROZETKA_LOCAL_XML", "")).expanduser(),
     ROZETKA_BACKUP_XML,
@@ -779,6 +785,15 @@ def extract_available(offer: ET._Element) -> str:
     return normalize_text(offer.get("available"))
 
 
+def clear_old_price(offer: ET._Element) -> bool:
+    changed = False
+    for child in list(offer):
+        if child.tag in OLD_PRICE_TAGS:
+            offer.remove(child)
+            changed = True
+    return changed
+
+
 def set_or_create(offer: ET._Element, tag: str, value: str) -> bool:
     value = normalize_text(value)
     if not value:
@@ -855,6 +870,66 @@ def normalize_old_price(offer: ET._Element) -> None:
     if old_value:
         node = ET.SubElement(offer, "old_price")
         node.text = old_value
+
+
+def normalize_header_key(value: str) -> str:
+    return normalize_key(value).replace("\xa0", " ")
+
+
+def normalize_sheet_number(value: str) -> str:
+    raw = normalize_text(value).replace("\xa0", "").replace(" ", "")
+    if not raw:
+        return ""
+    cleaned = re.sub(r"[^0-9,.\-]", "", raw).replace(",", ".")
+    if cleaned.count(".") > 1:
+        parts = cleaned.split(".")
+        cleaned = "".join(parts[:-1]) + "." + parts[-1]
+    try:
+        num = float(cleaned)
+    except ValueError:
+        return ""
+    if abs(num - round(num)) < 1e-9:
+        return str(int(round(num)))
+    return f"{num:.2f}"
+
+
+def normalize_sheet_available(value: str) -> str:
+    key = normalize_header_key(value)
+    if key in {"в наличии", "є в наявності", "в наявності", "available"}:
+        return "true"
+    if key in {"нет в наличии", "немає в наявності", "не в наличии", "false"}:
+        return "false"
+    return ""
+
+
+def load_google_table_index() -> dict[str, dict[str, str]]:
+    try:
+        response = requests.get(GOOGLE_TABLE_CSV_URL, timeout=GOOGLE_TABLE_TIMEOUT_SEC)
+        response.raise_for_status()
+    except Exception as exc:
+        print(f"⚠ Google Table недоступна, fallback отключен: {exc}")
+        return {}
+
+    index: dict[str, dict[str, str]] = {}
+    rows = csv.DictReader(response.text.splitlines())
+    for row in rows:
+        normalized_row = {normalize_header_key(k): normalize_text(v) for k, v in row.items() if k}
+        article = normalized_row.get("артикул", "")
+        if not article:
+            continue
+        key = normalize_key(article)
+        if not key or key in index:
+            continue
+
+        price = normalize_sheet_number(normalized_row.get("цена ррц", ""))
+        old_price = normalize_sheet_number(normalized_row.get("старая цена", ""))
+        available = normalize_sheet_available(normalized_row.get("наличие", ""))
+        index[key] = {
+            "price": price,
+            "old_price": old_price,
+            "available": available,
+        }
+    return index
 
 
 def enrich_vendor_country_from_params(offer: ET._Element) -> int:
@@ -3091,6 +3166,7 @@ def main() -> int:
 
         rozetka_tree = ET.parse(str(rozetka_path))
         rozetka_idx = build_rozetka_index(rozetka_tree)
+        google_table_idx = load_google_table_index()
 
         tree = ET.parse(str(base_path))
         root = tree.getroot()
@@ -3116,6 +3192,7 @@ def main() -> int:
             vendor = normalize_key(child_text(offer, "vendor"))
             key = resolve_offer_id_key(offer)
             rz = rozetka_idx.get(key)
+            google_row = google_table_idx.get(key)
 
             keep_without_rozetka = (
                 source_category_id in KEEP_WITHOUT_ROZETKA_SOURCE_CATEGORIES
@@ -3133,6 +3210,21 @@ def main() -> int:
                     changed_other += 1
                 if set_available(offer, rz.get("available", "")):
                     changed_other += 1
+            elif google_row:
+                if set_or_create(offer, "price", google_row.get("price", "")):
+                    changed_price += 1
+                google_old_price = google_row.get("old_price", "")
+                if google_old_price and google_old_price != google_row.get("price", ""):
+                    if set_or_create(offer, "old_price", google_old_price):
+                        changed_other += 1
+                elif clear_old_price(offer):
+                    changed_other += 1
+                google_available = google_row.get("available", "")
+                if google_available:
+                    if set_available(offer, google_available):
+                        changed_other += 1
+                else:
+                    set_available(offer, extract_available(offer))
             else:
                 set_available(offer, extract_available(offer))
 
