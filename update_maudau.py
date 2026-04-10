@@ -1951,6 +1951,30 @@ def has_required_fields(offer: ET._Element) -> bool:
     return len(pics) > 0
 
 
+def detect_source_categories_absent_in_rozetka(
+    root: ET._Element,
+    rozetka_idx: dict[str, dict[str, str]],
+) -> set[str]:
+    stats: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+
+    for offer in root.xpath("//offer"):
+        source_category_id = child_text(offer, "categoryId")
+        if not source_category_id:
+            continue
+        stats[source_category_id][0] += 1
+        if resolve_offer_id_key(offer) in rozetka_idx:
+            stats[source_category_id][1] += 1
+
+    # If an entire source category is missing from the current Rozetka XML,
+    # keep it in the feed temporarily. As soon as the category appears in
+    # Rozetka again, regular price/availability syncing resumes automatically.
+    return {
+        source_category_id
+        for source_category_id, (total, matched) in stats.items()
+        if total > 0 and matched == 0
+    }
+
+
 def resolve_target_category_id(offer: ET._Element, source_id: str) -> str:
     target_id = SOURCE_TO_MAUDAU_CATEGORY.get(source_id, source_id)
 
@@ -3083,6 +3107,7 @@ def main() -> int:
         changed_other = 0
         changed_category = 0
         changed_params = 0
+        categories_absent_in_rozetka = detect_source_categories_absent_in_rozetka(root, rozetka_idx)
 
         offers = root.xpath("//offer")
         for offer in list(offers):
@@ -3091,7 +3116,10 @@ def main() -> int:
             key = resolve_offer_id_key(offer)
             rz = rozetka_idx.get(key)
 
-            keep_without_rozetka = source_category_id in KEEP_WITHOUT_ROZETKA_SOURCE_CATEGORIES
+            keep_without_rozetka = (
+                source_category_id in KEEP_WITHOUT_ROZETKA_SOURCE_CATEGORIES
+                or source_category_id in categories_absent_in_rozetka
+            )
             if rz is None and vendor not in ALLOWED_VENDORS and not keep_without_rozetka:
                 offer.getparent().remove(offer)
                 removed_missing += 1
