@@ -3,8 +3,8 @@ name: Update Maudau XML
 on:
   schedule:
     # Auto-generated from Configurator. Times are Europe/Kyiv; GitHub cron is UTC (current UTC+3).
-    - cron: '0 9 * * *'  # 12:00 Kyiv
-    - cron: '0 20 * * *'  # 23:00 Kyiv
+    - cron: '50 8 * * *'  # 11:50 Kyiv
+    - cron: '50 19 * * *'  # 22:50 Kyiv
   workflow_dispatch:
 
 permissions:
