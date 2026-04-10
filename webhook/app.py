@@ -131,8 +131,6 @@ def keyboard() -> str:
     buttons = [
         [{"text": "Обновить MAUDAU", "callback_data": "run:maudau"}],
         [{"text": "Обновить EPICENTER", "callback_data": "run:epicenter"}],
-        [{"text": "Обновить HOTLINE", "callback_data": "run_direct:hotline"}],
-        [{"text": "Обновить ROZETKA", "callback_data": "run_direct:rozetka_direct"}],
     ]
     return json.dumps({"inline_keyboard": buttons}, ensure_ascii=False)
 
@@ -308,15 +306,12 @@ async def telegram_webhook(
                 answer_callback(callback_id, "Нет доступа")
                 return {"ok": True}
 
-            if not data.startswith("run:") and not data.startswith("run_direct:"):
+            if not data.startswith("run:"):
                 answer_callback(callback_id, "Неизвестная команда")
                 return {"ok": True}
 
-            prefix, feed_key = data.split(":", 1)
-            if prefix == "run":
-                ok, text = dispatch_workflow(feed_key)
-            else:
-                ok, text = trigger_direct_feed(feed_key)
+            _prefix, feed_key = data.split(":", 1)
+            ok, text = dispatch_workflow(feed_key)
 
             answer_callback(callback_id, text if ok else "Ошибка запуска")
             tg_api("sendMessage", {"chat_id": chat_id, "text": text})
