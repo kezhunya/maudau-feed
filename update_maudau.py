@@ -2174,10 +2174,10 @@ def ensure_root_date(root: ET._Element) -> None:
 
 
 def ensure_unique_offer_ids(root: ET._Element) -> int:
-    """Ensure all offer ids are unique while preserving canonical article hyphens."""
+    """Drop duplicate offers by id, keeping only the first occurrence."""
     used: set[str] = set()
-    changed = 0
-    for offer in root.xpath("//offer"):
+    removed = 0
+    for offer in list(root.xpath("//offer")):
         base = normalize_text(offer.get("id"))
         if not base:
             continue
@@ -2185,15 +2185,11 @@ def ensure_unique_offer_ids(root: ET._Element) -> int:
             used.add(base)
             continue
 
-        suffix = 2
-        candidate = f"{base}-{suffix}"
-        while candidate in used:
-            suffix += 1
-            candidate = f"{base}-{suffix}"
-        offer.set("id", candidate)
-        used.add(candidate)
-        changed += 1
-    return changed
+        parent = offer.getparent()
+        if parent is not None:
+            parent.remove(offer)
+            removed += 1
+    return removed
 
 
 def rebuild_categories(
@@ -3324,7 +3320,7 @@ def main() -> int:
 {source_header}
 
 ❌ Удалено из файла (не в Розетке, кроме Мойдодыр/Dusel): {removed_missing}
-🆔 Скорректировано дублирующихся offer id: {deduped_ids}
+🆔 Удалено дублей offer id: {deduped_ids}
 💲 Обновлено цен: {changed_price}
 🔁 Обновлено старых цен и наличия: {changed_other}
 
