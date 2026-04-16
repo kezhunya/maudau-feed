@@ -57,6 +57,7 @@ LOCAL_ENV_FILE = Path(__file__).resolve().parent / ".env"
 ROZETKA_DOWNLOAD_TIMEOUT_SEC = int(os.environ.get("ROZETKA_DOWNLOAD_TIMEOUT_SEC", "240"))
 BASE_DOWNLOAD_TIMEOUT_SEC = int(os.environ.get("BASE_DOWNLOAD_TIMEOUT_SEC", "180"))
 GOOGLE_TABLE_TIMEOUT_SEC = int(os.environ.get("GOOGLE_TABLE_TIMEOUT_SEC", "60"))
+GOOGLE_TABLE_BACKUP_CSV = BACKUP_DIR / "google_table_last.csv"
 ROZETKA_BACKUP_CANDIDATES = [
     Path(os.environ.get("ROZETKA_LOCAL_XML", "")).expanduser(),
     ROZETKA_BACKUP_XML,
@@ -73,6 +74,13 @@ BASE_BACKUP_CANDIDATES = [
     MAUDAU_DIR / "base.xml",
     Path("aquafavorit.xml"),
     BASE_XML,
+]
+
+GOOGLE_TABLE_BACKUP_CANDIDATES = [
+    Path(os.environ.get("GOOGLE_TABLE_LOCAL_CSV", "")).expanduser(),
+    GOOGLE_TABLE_BACKUP_CSV,
+    MAUDAU_DIR / "google_table_last.csv",
+    Path("google_table_last.csv"),
 ]
 
 MERCHANT_CATEGORIES_CANDIDATES = [
@@ -460,7 +468,6 @@ CATEGORY_ATTR_VALUE_OVERRIDES = {
 
 ALLOWED_VENDORS = {"мойдодыр", "dusel"}
 OLD_PRICE_TAGS = ("old_price", "oldprice", "price_old", "old", "priceold")
-ID_CLEAN_RE = re.compile(r"[^A-Za-z0-9]")
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
 MULTISPACE_RE = re.compile(r"\s+")
@@ -573,6 +580,15 @@ def resolve_base_backup_path() -> Path | None:
                 ET.parse(str(candidate))
             except Exception:
                 continue
+            return candidate
+    return None
+
+
+def resolve_google_table_backup_path() -> Path | None:
+    for candidate in GOOGLE_TABLE_BACKUP_CANDIDATES:
+        if not str(candidate):
+            continue
+        if candidate.is_file() and candidate.stat().st_size > 0:
             return candidate
     return None
 
@@ -902,16 +918,9 @@ def normalize_sheet_available(value: str) -> str:
     return ""
 
 
-def load_google_table_index() -> dict[str, dict[str, str]]:
-    try:
-        response = requests.get(GOOGLE_TABLE_CSV_URL, timeout=GOOGLE_TABLE_TIMEOUT_SEC)
-        response.raise_for_status()
-    except Exception as exc:
-        print(f"⚠ Google Table недоступна, fallback отключен: {exc}")
-        return {}
-
+def parse_google_table_index(csv_text: str) -> dict[str, dict[str, str]]:
     index: dict[str, dict[str, str]] = {}
-    rows = csv.DictReader(response.text.splitlines())
+    rows = csv.DictReader(csv_text.splitlines())
     for row in rows:
         normalized_row = {normalize_header_key(k): normalize_text(v) for k, v in row.items() if k}
         article = normalized_row.get("артикул", "")
@@ -930,6 +939,33 @@ def load_google_table_index() -> dict[str, dict[str, str]]:
             "available": available,
         }
     return index
+
+
+def load_google_table_index() -> dict[str, dict[str, str]]:
+    try:
+        response = requests.get(GOOGLE_TABLE_CSV_URL, timeout=GOOGLE_TABLE_TIMEOUT_SEC)
+        response.raise_for_status()
+        index = parse_google_table_index(response.text)
+        if not index:
+            raise ValueError("Google CSV пустой или без колонки Артикул")
+        GOOGLE_TABLE_BACKUP_CSV.write_text(response.text, encoding="utf-8")
+        return index
+    except Exception as exc:
+        backup = resolve_google_table_backup_path()
+        if not backup:
+            print(f"⚠ Google Table недоступна, fallback отключен: {exc}")
+            return {}
+        try:
+            index = parse_google_table_index(backup.read_text(encoding="utf-8"))
+        except UnicodeDecodeError:
+            index = parse_google_table_index(backup.read_text(encoding="utf-8-sig"))
+        if not index:
+            print(f"⚠ Google Table недоступна, backup пустой: {backup} ({exc})")
+            return {}
+        if backup.resolve() != GOOGLE_TABLE_BACKUP_CSV.resolve():
+            shutil.copy2(backup, GOOGLE_TABLE_BACKUP_CSV)
+        print(f"⚠ Google Table недоступна, используем backup: {backup} ({exc})")
+        return index
 
 
 def enrich_vendor_country_from_params(offer: ET._Element) -> int:
@@ -2010,10 +2046,9 @@ def cleanup_pictures(offer: ET._Element) -> None:
 
 def normalize_offer_id(offer: ET._Element) -> bool:
     raw = resolve_offer_id_raw(offer)
-    clean = ID_CLEAN_RE.sub("", raw)
-    if not clean:
+    if not raw:
         return False
-    offer.set("id", clean)
+    offer.set("id", raw)
     return True
 
 
@@ -2139,7 +2174,7 @@ def ensure_root_date(root: ET._Element) -> None:
 
 
 def ensure_unique_offer_ids(root: ET._Element) -> int:
-    """Ensure all offer ids are unique and remain [A-Za-z0-9]."""
+    """Ensure all offer ids are unique while preserving canonical article hyphens."""
     used: set[str] = set()
     changed = 0
     for offer in root.xpath("//offer"):
@@ -2151,10 +2186,10 @@ def ensure_unique_offer_ids(root: ET._Element) -> int:
             continue
 
         suffix = 2
-        candidate = f"{base}{suffix}"
+        candidate = f"{base}-{suffix}"
         while candidate in used:
             suffix += 1
-            candidate = f"{base}{suffix}"
+            candidate = f"{base}-{suffix}"
         offer.set("id", candidate)
         used.add(candidate)
         changed += 1
@@ -3118,6 +3153,7 @@ def main() -> int:
                 "Розетка XML",
                 timeout=ROZETKA_DOWNLOAD_TIMEOUT_SEC,
             )
+            ET.parse(str(ROZETKA_XML))
             shutil.copy2(ROZETKA_XML, ROZETKA_BACKUP_XML)
             update_source_success(sources_state, "parserbiz", ROZETKA_XML)
         except Exception as rozetka_exc:
@@ -3145,6 +3181,7 @@ def main() -> int:
                 "Maudau XML",
                 timeout=BASE_DOWNLOAD_TIMEOUT_SEC,
             )
+            ET.parse(str(BASE_XML))
             shutil.copy2(BASE_XML, BASE_BACKUP_XML)
             update_source_success(sources_state, "aquafavorit", BASE_XML)
         except Exception as base_exc:
@@ -3195,7 +3232,8 @@ def main() -> int:
             google_row = google_table_idx.get(key)
 
             keep_without_rozetka = (
-                source_category_id in KEEP_WITHOUT_ROZETKA_SOURCE_CATEGORIES
+                bool(google_row)
+                or source_category_id in KEEP_WITHOUT_ROZETKA_SOURCE_CATEGORIES
                 or source_category_id in categories_absent_in_rozetka
             )
             if rz is None and vendor not in ALLOWED_VENDORS and not keep_without_rozetka:
