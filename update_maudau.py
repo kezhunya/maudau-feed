@@ -347,6 +347,9 @@ COMMON_PARAM_NAME_MAP = {
     "длина душевого шланга, см": "Довжина душового шлангу",
     "длина шланга, см": "Довжина шлангу",
     "диаметр душа, мм": "Діаметр ручної лійки",
+    "открытие/закрытие сливных отверстий": "Тип відкриття/перекриття зливного отвору",
+    "диаметр выпуска": "Діаметр випуску в каналізацію",
+    "тип донного клапана": "Перелив",
     "количество режимов": "Кількість режимів",
     "комплектация": "Комплектація",
     "особенности": "Особливості",
@@ -462,6 +465,47 @@ CATEGORY_ATTR_VALUE_OVERRIDES = {
             "механическое": "Механическое",
             "электронное": "Электронное",
             "сенсорное": "Сенсорное",
+        },
+    },
+    "3172": {
+        "Призначення": {
+            "для стиральных и посудомойных машин": "Для стиральных машин",
+            "для стиральных и посудомоечных машин": "Для стиральных машин",
+            "для ванны": "Для ванн",
+            "для умывальника": "Для умывальников",
+            "для кухонных моек": "Для кухонных моек",
+            "универсальные": "Универсальные",
+            "для кондиционеров": "Для кондиционеров",
+            "для писсуаров": "Для писсуаров",
+            "для биде": "Для биде",
+            "для душевых поддонов": "Для душевых поддонов",
+            "для чаши генуя": "Для чаш Генуя",
+        },
+        "Матеріал": {
+            "латунь": "Латунь",
+            "керамика": "Латунь",
+            "металл": "Сталь",
+            "пластик": "Пластик",
+        },
+        "Тип відкриття/перекриття зливного отвору": {
+            "на пробке-цепочке": "Ручний",
+            "полуавтомат (на тросике)": "Полуавтоматический",
+            "автомат": "Автоматический",
+            "незапираемый": "Без перекрытия",
+            "клапан click-clack": "Click-clack",
+            "рычажный pop-up": "Ручний",
+        },
+        "Діаметр випуску в каналізацію": {
+            "25": "25 мм",
+            "32": "32 мм",
+            "40": "40 мм",
+            "50": "50 мм",
+            "110": "110 мм",
+            "40/50": "40/50 мм",
+        },
+        "Перелив": {
+            "с переливом": "Да",
+            "без перелива": "Нет",
         },
     },
 }
@@ -2004,6 +2048,25 @@ def cleanup_params(offer: ET._Element, target_category_id: str, merchant_catalog
         dedupe.add(dedupe_key)
 
 
+def apply_siphon_category_rules(offer: ET._Element, target_category_id: str, merchant_catalog: dict[str, dict]) -> int:
+    if target_category_id != "3172":
+        return 0
+
+    meta = merchant_catalog.get(target_category_id, {})
+    attr_lookup = meta.get("attr_lookup", {})
+    attrs = meta.get("attrs", {})
+
+    purpose_name = attr_lookup.get(normalize_key("Призначення"), "Призначення")
+    purpose_value = find_param_value(offer, purpose_name)
+    if normalize_key(purpose_value) != normalize_key("Для стиральных машин"):
+        return 0
+
+    conn_name = attr_lookup.get(normalize_key("Підключення до пральної машини"), "Підключення до пральної машини")
+    allowed_values = attrs.get(conn_name, {})
+    conn_value = map_param_value_to_allowed("Да", allowed_values) if allowed_values else "Да"
+    return 1 if upsert_param(offer, conn_name, conn_value) else 0
+
+
 def apply_forced_category_params(
     offer: ET._Element,
     source_category_id: str,
@@ -2106,13 +2169,6 @@ def resolve_target_category_id(offer: ET._Element, source_id: str) -> str:
             return "3175"
         return "3189"
 
-    # 1169 "Комплектующие": only siphons are remapped to 3172.
-    if source_id == "1169":
-        kind = normalize_key(find_param_value(offer, "Вид"))
-        if "сифон" in kind:
-            return "3172"
-        return source_id
-
     return target_id
 
 
@@ -2153,6 +2209,7 @@ def normalize_offer(
     normalize_vendor_by_catalog(offer, brands_catalog)
     normalize_country_by_catalog(offer, countries_catalog)
     cleanup_params(offer, target_category_id, merchant_catalog)
+    apply_siphon_category_rules(offer, target_category_id, merchant_catalog)
     cleanup_pictures(offer)
     offer.attrib.pop("group_id", None)
 
@@ -2236,8 +2293,6 @@ def rebuild_categories(
         extra_ids: list[str] = []
         if sid == "1167":
             extra_ids = ["3175", "3189"]
-        elif sid == "1169":
-            extra_ids = ["3172"]
         else:
             tid = SOURCE_TO_MAUDAU_CATEGORY.get(sid, sid)
             if tid and tid != sid:
