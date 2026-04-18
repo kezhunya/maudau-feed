@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 from lxml import etree as ET
+from openpyxl import Workbook
 
 BASE_FEED_URL = "https://aqua-favorit.com.ua/content/export/b0026fd850ce11bb0cb7610e252d7dae.xml"
 ROZETKA_FEED_URL = "http://parser.biz.ua/Aqua/api/export.aspx?action=rozetka&key=ui82P2VotQQamFTj512NQJK3HOlKvyv7"
@@ -20,8 +21,14 @@ GOOGLE_TABLE_CSV_URL = (
     "https://docs.google.com/spreadsheets/d/"
     "1S6L2iLlvJzDf2vNBoSPRwEuoEIP_muojrT-00KshR_c/gviz/tq?tqx=out:csv&gid=0"
 )
+GOOGLE_SETTINGS_CSV_URL = (
+    "https://docs.google.com/spreadsheets/d/"
+    "1S6L2iLlvJzDf2vNBoSPRwEuoEIP_muojrT-00KshR_c/gviz/tq?tqx=out:csv&sheet=%D0%9D%D0%B0%D1%81%D1%82%D1%80%D0%BE%D0%B9%D0%BA%D0%B8"
+)
 MAUDAU_DIR = Path(__file__).resolve().parent / "maudau"
 MAUDAU_DIR.mkdir(parents=True, exist_ok=True)
+OSTATKI_DIR = Path("/Volumes/X-Files/Загрузки рабочие/Остатки")
+SOURCE_ISSUES_XLSX = OSTATKI_DIR / "Проблема исходников.xlsx"
 OUTPUT_XML = Path(__file__).resolve().parent / "update_maudau.xml"
 LOCAL_OUTPUT_XML = MAUDAU_DIR / "update_maudau.xml"
 MAPPING_REPORT_XLSX = MAUDAU_DIR / "maudau_mapping_gaps.xlsx"
@@ -47,20 +54,31 @@ TMP_DIR = Path("/tmp/maudau_feed")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 BASE_XML = TMP_DIR / "base.xml"
 ROZETKA_XML = TMP_DIR / "rozetka.xml"
-BACKUP_DIR = MAUDAU_DIR / "backups"
-BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+SHARED_BACKUP_DIR = Path("/Volumes/X-Files/Загрузки рабочие/Остатки/Backup")
+SHARED_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+LEGACY_BACKUP_DIR = MAUDAU_DIR / "backups"
+LEGACY_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+BACKUP_DIR = SHARED_BACKUP_DIR
 BASE_BACKUP_XML = BACKUP_DIR / "aquafavorit_last.xml"
 ROZETKA_BACKUP_XML = BACKUP_DIR / "parserbiz_last.xml"
-SOURCES_STATE_JSON = BACKUP_DIR / "sources_state.json"
-SOURCE_STALE_HOURS = 72
+LEGACY_BASE_BACKUP_XML = LEGACY_BACKUP_DIR / "aquafavorit_last.xml"
+LEGACY_ROZETKA_BACKUP_XML = LEGACY_BACKUP_DIR / "parserbiz_last.xml"
+SOURCES_STATE_JSON = BACKUP_DIR / "sources_state_maudau.json"
+SOURCE_STALE_HOURS = int(os.environ.get("SOURCE_STALE_HOURS", "48"))
 LOCAL_ENV_FILE = Path(__file__).resolve().parent / ".env"
 ROZETKA_DOWNLOAD_TIMEOUT_SEC = int(os.environ.get("ROZETKA_DOWNLOAD_TIMEOUT_SEC", "240"))
 BASE_DOWNLOAD_TIMEOUT_SEC = int(os.environ.get("BASE_DOWNLOAD_TIMEOUT_SEC", "180"))
 GOOGLE_TABLE_TIMEOUT_SEC = int(os.environ.get("GOOGLE_TABLE_TIMEOUT_SEC", "60"))
+GOOGLE_SETTINGS_TIMEOUT_SEC = int(os.environ.get("GOOGLE_SETTINGS_TIMEOUT_SEC", "30"))
+GOOGLE_EUR_RATE_FALLBACK = float(os.environ.get("GOOGLE_EUR_RATE_FALLBACK", "52.5"))
 GOOGLE_TABLE_BACKUP_CSV = BACKUP_DIR / "google_table_last.csv"
+GOOGLE_SETTINGS_BACKUP_JSON = BACKUP_DIR / "google_settings_last.json"
+LEGACY_GOOGLE_TABLE_BACKUP_CSV = LEGACY_BACKUP_DIR / "google_table_last.csv"
+LEGACY_GOOGLE_SETTINGS_BACKUP_JSON = LEGACY_BACKUP_DIR / "google_settings_last.json"
 ROZETKA_BACKUP_CANDIDATES = [
     Path(os.environ.get("ROZETKA_LOCAL_XML", "")).expanduser(),
     ROZETKA_BACKUP_XML,
+    LEGACY_ROZETKA_BACKUP_XML,
     MAUDAU_DIR / "https-::parser.biz.ua:Aqua:api:export.aspx?action=rozetka&key=ui82P2VotQQamFTj512NQJK3HOlKvyv7",
     MAUDAU_DIR / "rozetka.xml",
     Path("rozetka.xml"),
@@ -70,6 +88,7 @@ ROZETKA_BACKUP_CANDIDATES = [
 BASE_BACKUP_CANDIDATES = [
     Path(os.environ.get("BASE_LOCAL_XML", "")).expanduser(),
     BASE_BACKUP_XML,
+    LEGACY_BASE_BACKUP_XML,
     MAUDAU_DIR / "aquafavorit.xml",
     MAUDAU_DIR / "base.xml",
     Path("aquafavorit.xml"),
@@ -79,8 +98,14 @@ BASE_BACKUP_CANDIDATES = [
 GOOGLE_TABLE_BACKUP_CANDIDATES = [
     Path(os.environ.get("GOOGLE_TABLE_LOCAL_CSV", "")).expanduser(),
     GOOGLE_TABLE_BACKUP_CSV,
+    LEGACY_GOOGLE_TABLE_BACKUP_CSV,
     MAUDAU_DIR / "google_table_last.csv",
     Path("google_table_last.csv"),
+]
+
+GOOGLE_SETTINGS_BACKUP_CANDIDATES = [
+    GOOGLE_SETTINGS_BACKUP_JSON,
+    LEGACY_GOOGLE_SETTINGS_BACKUP_JSON,
 ]
 
 MERCHANT_CATEGORIES_CANDIDATES = [
@@ -637,6 +662,15 @@ def resolve_google_table_backup_path() -> Path | None:
     return None
 
 
+def resolve_google_settings_backup_path() -> Path | None:
+    for candidate in GOOGLE_SETTINGS_BACKUP_CANDIDATES:
+        if not str(candidate):
+            continue
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            return candidate
+    return None
+
+
 def load_sources_state() -> dict:
     if not SOURCES_STATE_JSON.exists():
         return {}
@@ -650,7 +684,7 @@ def save_sources_state(state: dict) -> None:
     try:
         SOURCES_STATE_JSON.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as exc:
-        print(f"⚠ Не удалось сохранить sources_state.json: {exc}")
+        print(f"⚠ Не удалось сохранить {SOURCES_STATE_JSON.name}: {exc}")
 
 
 def update_source_success(state: dict, source_key: str, used_path: Path) -> None:
@@ -673,32 +707,6 @@ def update_source_failure(state: dict, source_key: str) -> None:
     state[source_key] = item
 
 
-def stale_alert_text(state: dict, source_key: str, source_label: str, backup_path: Path | None = None) -> str:
-    item = state.get(source_key, {})
-    ref_ts: int | None = None
-
-    last_success_ts = item.get("last_success_ts")
-    if isinstance(last_success_ts, int):
-        ref_ts = last_success_ts
-    elif backup_path and backup_path.exists():
-        try:
-            ref_ts = int(backup_path.stat().st_mtime)
-        except Exception:
-            ref_ts = None
-    else:
-        first_failure_ts = item.get("first_failure_ts")
-        if isinstance(first_failure_ts, int):
-            ref_ts = first_failure_ts
-
-    if ref_ts is None:
-        return ""
-
-    hours = (time.time() - ref_ts) / 3600.0
-    if hours >= SOURCE_STALE_HOURS:
-        return f"{source_label} недоступен 72 часа"
-    return ""
-
-
 def backup_date_str(path: Path | None) -> str:
     if path is None:
         return datetime.now().strftime("%d.%m.%Y")
@@ -712,6 +720,66 @@ def source_status_block(title: str, loaded_from_source: bool, backup_path: Path 
     if loaded_from_source:
         return f"▶ Загрузка: {title}\n✅ {title} загружен"
     return f"⛔️ {title} не загружен - взят из backup ({backup_date_str(backup_path)})"
+
+
+def source_stale_info(
+    state: dict,
+    source_key: str,
+    source_label: str,
+    backup_path: Path | None = None,
+    backup_filename: str = "",
+) -> dict | None:
+    item = state.get(source_key, {})
+    ref_ts: int | None = None
+    if isinstance(item.get("last_success_ts"), int):
+        ref_ts = int(item["last_success_ts"])
+    elif backup_path and backup_path.exists():
+        try:
+            ref_ts = int(backup_path.stat().st_mtime)
+        except Exception:
+            ref_ts = None
+
+    if ref_ts is None:
+        return None
+
+    stale_hours = (time.time() - ref_ts) / 3600.0
+    if stale_hours < SOURCE_STALE_HOURS:
+        return None
+
+    backup_dt = datetime.fromtimestamp(ref_ts).strftime("%d.%m.%Y %H:%M:%S")
+    backup_hint = backup_filename or (backup_path.name if backup_path else "")
+    return {
+        "source": source_label,
+        "backup_date": backup_dt,
+        "manual": "Да",
+        "save_hint": f"/Volumes/X-Files/Загрузки рабочие/Остатки/Backup/{backup_hint}",
+    }
+
+
+def write_source_issues_report(rows: list[dict]) -> bool:
+    if not rows:
+        return False
+
+    try:
+        OSTATKI_DIR.mkdir(parents=True, exist_ok=True)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Проблема исходников"
+        ws.append(
+            [
+                "название исходника",
+                "дата последнего удачного backup",
+                "нужно обновить вручную",
+                "ссылка на папку куда сохранить и с каким именем",
+            ]
+        )
+        for row in rows:
+            ws.append([row["source"], row["backup_date"], row["manual"], row["save_hint"]])
+        wb.save(SOURCE_ISSUES_XLSX)
+        return True
+    except Exception as exc:
+        print(f"⚠ Не удалось сформировать {SOURCE_ISSUES_XLSX}: {exc}")
+        return False
 
 
 def now_kyiv() -> datetime:
@@ -953,6 +1021,52 @@ def normalize_sheet_number(value: str) -> str:
     return f"{num:.2f}"
 
 
+def parse_number_float(value: str | None) -> float | None:
+    raw = normalize_text(value).replace("\xa0", "").replace(" ", "")
+    if not raw:
+        return None
+    cleaned = re.sub(r"[^0-9,.\-]", "", raw).replace(",", ".")
+    if cleaned.count(".") > 1:
+        parts = cleaned.split(".")
+        cleaned = "".join(parts[:-1]) + "." + parts[-1]
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def format_number_for_feed(value: float) -> str:
+    if abs(value - round(value)) < 1e-9:
+        return str(int(round(value)))
+    text = f"{value:.2f}"
+    return text.rstrip("0").rstrip(".")
+
+
+def pick_effective_price(source_price: str, external_price: str) -> str:
+    source_norm = normalize_sheet_number(source_price)
+    external_norm = normalize_sheet_number(external_price)
+    if not external_norm:
+        return source_norm
+    source_num = parse_number_float(source_norm)
+    external_num = parse_number_float(external_norm)
+    if source_num is not None and external_num is not None and external_num < source_num:
+        return source_norm
+    return external_norm
+
+
+def pick_effective_old_price(final_price: str, external_old_price: str) -> str:
+    old_norm = normalize_sheet_number(external_old_price)
+    if not old_norm:
+        return ""
+    final_num = parse_number_float(final_price)
+    old_num = parse_number_float(old_norm)
+    if final_num is None or old_num is None:
+        return ""
+    if old_num <= final_num:
+        return ""
+    return old_norm
+
+
 def normalize_sheet_available(value: str) -> str:
     key = normalize_header_key(value)
     if key in {"в наличии", "є в наявності", "в наявності", "available"}:
@@ -962,7 +1076,58 @@ def normalize_sheet_available(value: str) -> str:
     return ""
 
 
-def parse_google_table_index(csv_text: str) -> dict[str, dict[str, str]]:
+def parse_google_eur_rate(csv_text: str) -> float | None:
+    reader = csv.reader(csv_text.splitlines())
+    for row in reader:
+        if not row:
+            continue
+        left = normalize_header_key(row[0] if len(row) > 0 else "")
+        middle = normalize_header_key(row[1] if len(row) > 1 else "")
+        if left == "eur" or middle == "eur":
+            rate = parse_number_float(row[2] if len(row) > 2 else "")
+            if rate and rate > 0:
+                return rate
+    return None
+
+
+def load_google_eur_rate() -> float:
+    try:
+        response = requests.get(GOOGLE_SETTINGS_CSV_URL, timeout=GOOGLE_SETTINGS_TIMEOUT_SEC)
+        response.raise_for_status()
+        rate = parse_google_eur_rate(response.text)
+        if rate and rate > 0:
+            GOOGLE_SETTINGS_BACKUP_JSON.write_text(
+                json.dumps(
+                    {
+                        "eur_rate": rate,
+                        "fetched_at": now_kyiv().strftime("%Y-%m-%d %H:%M:%S"),
+                        "source": "google_settings_sheet",
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            return rate
+        raise ValueError("Не удалось прочитать EUR курс из листа Настройки")
+    except Exception as exc:
+        backup = resolve_google_settings_backup_path()
+        if backup is not None:
+            try:
+                payload = json.loads(backup.read_text(encoding="utf-8"))
+                rate = float(payload.get("eur_rate", 0))
+                if rate > 0:
+                    if backup.resolve() != GOOGLE_SETTINGS_BACKUP_JSON.resolve():
+                        shutil.copy2(backup, GOOGLE_SETTINGS_BACKUP_JSON)
+                    print(f"⚠ Курс EUR из backup настроек: {rate} ({exc})")
+                    return rate
+            except Exception:
+                pass
+        print(f"⚠ Курс EUR из Настройки недоступен, используем fallback {GOOGLE_EUR_RATE_FALLBACK}: {exc}")
+        return GOOGLE_EUR_RATE_FALLBACK
+
+
+def parse_google_table_index(csv_text: str, eur_rate: float) -> dict[str, dict[str, str]]:
     index: dict[str, dict[str, str]] = {}
     rows = csv.DictReader(csv_text.splitlines())
     for row in rows:
@@ -974,8 +1139,22 @@ def parse_google_table_index(csv_text: str) -> dict[str, dict[str, str]]:
         if not key or key in index:
             continue
 
-        price = normalize_sheet_number(normalized_row.get("цена ррц", ""))
-        old_price = normalize_sheet_number(normalized_row.get("старая цена", ""))
+        raw_price = normalize_sheet_number(normalized_row.get("цена ррц", ""))
+        raw_old_price = normalize_sheet_number(normalized_row.get("старая цена", ""))
+        currency_key = normalize_header_key(normalized_row.get("валюта", ""))
+
+        if currency_key in {"eur", "планета воды"}:
+            price_num = parse_number_float(raw_price)
+            old_price_num = parse_number_float(raw_old_price)
+            price = format_number_for_feed((price_num or 0.0) * eur_rate) if price_num is not None else ""
+            old_price = (
+                format_number_for_feed(old_price_num * eur_rate)
+                if old_price_num is not None
+                else ""
+            )
+        else:
+            price = raw_price
+            old_price = raw_old_price
         available = normalize_sheet_available(normalized_row.get("наличие", ""))
         index[key] = {
             "price": price,
@@ -985,31 +1164,40 @@ def parse_google_table_index(csv_text: str) -> dict[str, dict[str, str]]:
     return index
 
 
-def load_google_table_index() -> dict[str, dict[str, str]]:
+def load_google_table_index(sources_state: dict | None = None) -> tuple[dict[str, dict[str, str]], bool, Path | None]:
+    eur_rate = load_google_eur_rate()
     try:
         response = requests.get(GOOGLE_TABLE_CSV_URL, timeout=GOOGLE_TABLE_TIMEOUT_SEC)
         response.raise_for_status()
-        index = parse_google_table_index(response.text)
+        index = parse_google_table_index(response.text, eur_rate)
         if not index:
             raise ValueError("Google CSV пустой или без колонки Артикул")
         GOOGLE_TABLE_BACKUP_CSV.write_text(response.text, encoding="utf-8")
-        return index
+        if sources_state is not None:
+            update_source_success(sources_state, "google_sheet", GOOGLE_TABLE_BACKUP_CSV)
+        return index, True, None
     except Exception as exc:
         backup = resolve_google_table_backup_path()
         if not backup:
             print(f"⚠ Google Table недоступна, fallback отключен: {exc}")
-            return {}
+            if sources_state is not None:
+                update_source_failure(sources_state, "google_sheet")
+            return {}, False, None
         try:
-            index = parse_google_table_index(backup.read_text(encoding="utf-8"))
+            index = parse_google_table_index(backup.read_text(encoding="utf-8"), eur_rate)
         except UnicodeDecodeError:
-            index = parse_google_table_index(backup.read_text(encoding="utf-8-sig"))
+            index = parse_google_table_index(backup.read_text(encoding="utf-8-sig"), eur_rate)
         if not index:
             print(f"⚠ Google Table недоступна, backup пустой: {backup} ({exc})")
-            return {}
+            if sources_state is not None:
+                update_source_failure(sources_state, "google_sheet")
+            return {}, False, backup
         if backup.resolve() != GOOGLE_TABLE_BACKUP_CSV.resolve():
             shutil.copy2(backup, GOOGLE_TABLE_BACKUP_CSV)
         print(f"⚠ Google Table недоступна, используем backup: {backup} ({exc})")
-        return index
+        if sources_state is not None:
+            update_source_failure(sources_state, "google_sheet")
+        return index, False, backup
 
 
 def enrich_vendor_country_from_params(offer: ET._Element) -> int:
@@ -3169,7 +3357,6 @@ def main() -> int:
     try:
         print("===== СТАРТ =====")
         sources_state = load_sources_state()
-        stale_alerts: list[str] = []
 
         merchant_categories_paths = resolve_merchant_categories_paths()
         merchant_catalog: dict[str, dict] = {}
@@ -3218,9 +3405,6 @@ def main() -> int:
                 shutil.copy2(backup, ROZETKA_BACKUP_XML)
             update_source_failure(sources_state, "parserbiz")
             print(f"⚠ Розетка недоступна, используем локальный файл: {backup}")
-            alert = stale_alert_text(sources_state, "parserbiz", "Исходник Parser.biz", backup)
-            if alert:
-                stale_alerts.append(alert)
 
         base_path = BASE_XML
         base_loaded_from_source = True
@@ -3246,15 +3430,29 @@ def main() -> int:
                 shutil.copy2(backup, BASE_BACKUP_XML)
             update_source_failure(sources_state, "aquafavorit")
             print(f"⚠ AquaFavorit недоступен, используем локальный файл: {backup}")
-            alert = stale_alert_text(sources_state, "aquafavorit", "Исходник Aquafavorit", backup)
-            if alert:
-                stale_alerts.append(alert)
-
-        save_sources_state(sources_state)
 
         rozetka_tree = ET.parse(str(rozetka_path))
         rozetka_idx = build_rozetka_index(rozetka_tree)
-        google_table_idx = load_google_table_index()
+        google_table_idx, _google_loaded_from_source, _google_fallback_path = load_google_table_index(sources_state)
+
+        save_sources_state(sources_state)
+        stale_issue_rows: list[dict] = []
+        stale_defs = [
+            ("parserbiz", "Исходник Parser.biz", resolve_rozetka_backup_path(), "parserbiz_last.xml"),
+            ("aquafavorit", "Исходник AquaFavorit", resolve_base_backup_path(), "aquafavorit_last.xml"),
+            ("google_sheet", "Google Sheet", resolve_google_table_backup_path(), "google_table_last.csv"),
+        ]
+        for source_key, source_label, backup_path, backup_filename in stale_defs:
+            info = source_stale_info(
+                sources_state,
+                source_key,
+                source_label,
+                backup_path=backup_path,
+                backup_filename=backup_filename,
+            )
+            if info:
+                stale_issue_rows.append(info)
+        backup_issue_active = write_source_issues_report(stale_issue_rows)
 
         tree = ET.parse(str(base_path))
         root = tree.getroot()
@@ -3292,30 +3490,32 @@ def main() -> int:
                 removed_missing += 1
                 continue
 
+            source_price = child_text(offer, "price")
+            source_available = extract_available(offer)
             if rz:
-                if set_or_create(offer, "price", rz.get("price", "")):
+                final_price = pick_effective_price(source_price, rz.get("price", ""))
+                if set_or_create(offer, "price", final_price):
                     changed_price += 1
-                if set_or_create(offer, "old_price", rz.get("old_price", "")):
-                    changed_other += 1
-                if set_available(offer, rz.get("available", "")):
-                    changed_other += 1
-            elif google_row:
-                if set_or_create(offer, "price", google_row.get("price", "")):
-                    changed_price += 1
-                google_old_price = google_row.get("old_price", "")
-                if google_old_price and google_old_price != google_row.get("price", ""):
-                    if set_or_create(offer, "old_price", google_old_price):
+                final_old = pick_effective_old_price(final_price, rz.get("old_price", ""))
+                if final_old:
+                    if set_or_create(offer, "old_price", final_old):
                         changed_other += 1
                 elif clear_old_price(offer):
                     changed_other += 1
-                google_available = google_row.get("available", "")
-                if google_available:
-                    if set_available(offer, google_available):
+            elif google_row:
+                final_price = pick_effective_price(source_price, google_row.get("price", ""))
+                if set_or_create(offer, "price", final_price):
+                    changed_price += 1
+                final_old = pick_effective_old_price(final_price, google_row.get("old_price", ""))
+                if final_old:
+                    if set_or_create(offer, "old_price", final_old):
                         changed_other += 1
-                else:
-                    set_available(offer, extract_available(offer))
-            else:
-                set_available(offer, extract_available(offer))
+                elif clear_old_price(offer):
+                    changed_other += 1
+
+            # Наличие всегда берём только из AquaFavorit (исходный offer.available).
+            if set_available(offer, source_available):
+                changed_other += 1
 
             remap_ok, _source_id, target_id, forced_changes, target_known = remap_offer_category(
                 offer,
@@ -3370,9 +3570,11 @@ def main() -> int:
                 source_status_block("Maudau XML", base_loaded_from_source, base_fallback_path),
             ]
         )
+        backup_issue_line = "⛔️Необходимо обновить Backup!!!\n\n" if backup_issue_active else ""
 
         report = f"""===== 🛍MauDau🛍=====
 {source_header}
+{backup_issue_line}
 
 ❌ Удалено из файла (не в Розетке, кроме Мойдодыр/Dusel): {removed_missing}
 🆔 Удалено дублей offer id: {deduped_ids}
@@ -3382,9 +3584,6 @@ def main() -> int:
 📦 Отправляем на MAUDAU товаров: {kept}
 📐 Размер итогового файла: {size_mb:.2f} MB
 ===== ГОТОВО ✅ ====="""
-
-        if stale_alerts:
-            report += "\n⚠ Источники недоступны более 72ч:\n" + "\n".join(stale_alerts)
 
         print(report)
         send_telegram(report)
