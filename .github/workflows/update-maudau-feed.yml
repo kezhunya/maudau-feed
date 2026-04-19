@@ -19,6 +19,8 @@ jobs:
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      OSTATKI_DIR: ${{ github.workspace }}/Остатки
+      SHARED_BACKUP_DIR: ${{ github.workspace }}/Остатки/Backup
 
     steps:
       - name: Checkout repository
@@ -34,8 +36,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests lxml openpyxl awscli
 
-      - name: Run MAUDAU/update_maudau.py
-        run: python MAUDAU/update_maudau.py
+      - name: Run update_maudau.py
+        run: python update_maudau.py
 
       - name: Validate Cloudflare R2 configuration
         env:
@@ -60,8 +62,8 @@ jobs:
           CF_R2_BUCKET_NAME: ${{ secrets.CF_R2_BUCKET_NAME }}
           CF_R2_OBJECT_KEY: update_maudau.xml
         run: |
-          test -s MAUDAU/update_maudau.xml
-          aws s3 cp MAUDAU/update_maudau.xml "s3://${CF_R2_BUCKET_NAME}/${CF_R2_OBJECT_KEY}" \
+          test -s update_maudau.xml
+          aws s3 cp update_maudau.xml "s3://${CF_R2_BUCKET_NAME}/${CF_R2_OBJECT_KEY}" \
             --endpoint-url "https://${CF_R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
             --content-type "application/xml; charset=utf-8" \
             --cache-control "no-store, max-age=0"

@@ -27,7 +27,7 @@ GOOGLE_SETTINGS_CSV_URL = (
 )
 MAUDAU_DIR = Path(__file__).resolve().parent / "maudau"
 MAUDAU_DIR.mkdir(parents=True, exist_ok=True)
-OSTATKI_DIR = Path("/Volumes/X-Files/Загрузки рабочие/Остатки")
+OSTATKI_DIR = Path(os.environ.get("OSTATKI_DIR", "/Volumes/X-Files/Загрузки рабочие/Остатки"))
 SOURCE_ISSUES_XLSX = OSTATKI_DIR / "Проблема исходников.xlsx"
 OUTPUT_XML = Path(__file__).resolve().parent / "update_maudau.xml"
 LOCAL_OUTPUT_XML = MAUDAU_DIR / "update_maudau.xml"
@@ -54,7 +54,7 @@ TMP_DIR = Path("/tmp/maudau_feed")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 BASE_XML = TMP_DIR / "base.xml"
 ROZETKA_XML = TMP_DIR / "rozetka.xml"
-SHARED_BACKUP_DIR = Path("/Volumes/X-Files/Загрузки рабочие/Остатки/Backup")
+SHARED_BACKUP_DIR = Path(os.environ.get("SHARED_BACKUP_DIR", str(OSTATKI_DIR / "Backup")))
 SHARED_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 LEGACY_BACKUP_DIR = MAUDAU_DIR / "backups"
 LEGACY_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
