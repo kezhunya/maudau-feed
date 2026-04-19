@@ -20,6 +20,13 @@ FEEDS = {
         "workflow": "update-maudau-feed.yml",
         "ref": "main",
     },
+    "allo": {
+        "title": "ALLO",
+        "owner": "kezhunya",
+        "repo": "allo-feed",
+        "workflow": "update-allo-feed.yml",
+        "ref": "main",
+    },
     "epicenter": {
         "title": "EPICENTER",
         "owner": "kezhunya",
@@ -62,6 +69,7 @@ def ack_updates(last_update_id: int) -> None:
 def keyboard() -> str:
     buttons = [
         [{"text": "Обновить MAUDAU", "callback_data": "run:maudau"}],
+        [{"text": "Обновить ALLO", "callback_data": "run:allo"}],
         [{"text": "Обновить EPICENTER", "callback_data": "run:epicenter"}],
     ]
     return json.dumps({"inline_keyboard": buttons}, ensure_ascii=False)
