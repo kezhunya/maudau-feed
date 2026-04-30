@@ -25,11 +25,12 @@ GOOGLE_SETTINGS_CSV_URL = (
     "https://docs.google.com/spreadsheets/d/"
     "1S6L2iLlvJzDf2vNBoSPRwEuoEIP_muojrT-00KshR_c/gviz/tq?tqx=out:csv&sheet=%D0%9D%D0%B0%D1%81%D1%82%D1%80%D0%BE%D0%B9%D0%BA%D0%B8"
 )
-MAUDAU_DIR = Path(__file__).resolve().parent / "maudau"
+PROJECT_ROOT = Path(__file__).resolve().parent
+MAUDAU_DIR = PROJECT_ROOT / "maudau"
 MAUDAU_DIR.mkdir(parents=True, exist_ok=True)
 OSTATKI_DIR = Path(os.environ.get("OSTATKI_DIR", "/Volumes/X-Files/Загрузки рабочие/Остатки"))
 SOURCE_ISSUES_XLSX = OSTATKI_DIR / "Проблема исходников.xlsx"
-OUTPUT_XML = Path(__file__).resolve().parent / "update_maudau.xml"
+OUTPUT_XML = PROJECT_ROOT / "update_maudau.xml"
 LOCAL_OUTPUT_XML = MAUDAU_DIR / "update_maudau.xml"
 MAPPING_REPORT_XLSX = MAUDAU_DIR / "maudau_mapping_gaps.xlsx"
 FINAL_MAPPING_TEMPLATE_XLSX = MAUDAU_DIR / "Финал_мапинг.xlsx"
@@ -65,7 +66,10 @@ LEGACY_BASE_BACKUP_XML = LEGACY_BACKUP_DIR / "aquafavorit_last.xml"
 LEGACY_ROZETKA_BACKUP_XML = LEGACY_BACKUP_DIR / "parserbiz_last.xml"
 SOURCES_STATE_JSON = BACKUP_DIR / "sources_state_maudau.json"
 SOURCE_STALE_HOURS = int(os.environ.get("SOURCE_STALE_HOURS", "48"))
-LOCAL_ENV_FILE = Path(__file__).resolve().parent / ".env"
+LOCAL_ENV_CANDIDATES = [
+    MAUDAU_DIR / ".env",
+    PROJECT_ROOT / ".env",
+]
 ROZETKA_DOWNLOAD_TIMEOUT_SEC = int(os.environ.get("ROZETKA_DOWNLOAD_TIMEOUT_SEC", "240"))
 BASE_DOWNLOAD_TIMEOUT_SEC = int(os.environ.get("BASE_DOWNLOAD_TIMEOUT_SEC", "180"))
 GOOGLE_TABLE_TIMEOUT_SEC = int(os.environ.get("GOOGLE_TABLE_TIMEOUT_SEC", "60"))
@@ -187,6 +191,7 @@ SOURCE_TO_MAUDAU_CATEGORY = {
     "1129": "2484",
     "1131": "2920",
     "1132": "2920",
+    "1232": "2920",
     "1176": "2483",
     "1166": "1903",
     "1168": "3165",
@@ -200,6 +205,7 @@ SOURCE_TO_MAUDAU_CATEGORY = {
     "1160": "1897",
     "1090": "3172",
     "1167": "3189",
+    "1279": "3172",
     # Heaters (from дополнение.xlsx)
     "1228": "669",
     "1266": "671",
@@ -219,6 +225,44 @@ SOURCE_TO_MAUDAU_CATEGORY = {
 
 # Fallback names for Maudau category ids that may be absent in primary merchant_categories dump.
 MAUDAU_CATEGORY_NAME_OVERRIDES = {
+    "1024": "Фены",
+    "669": "Керамические обогреватели",
+    "1175": "Чаши Генуя",
+    "1411": "Поручни для людей с ограниченными возможностями",
+    "1412": "Мыльницы",
+    "1417": "Ершики для унитаза",
+    "1418": "Наборы аксессуаров для ванной комнаты",
+    "1421": "Держатели туалетной бумаги",
+    "1423": "Держатели для ванной комнаты",
+    "1424": "Держатели для полотенец",
+    "1427": "Полки для ванной комнаты",
+    "1428": "Шторки и карнизы для ванной",
+    "1429": "Дозаторы (диспенсеры) для ванной комнаты",
+    "1430": "Стаканы для зубных щеток",
+    "1740": "Технические шланги",
+    "1897": "Бойлеры",
+    "1899": "Смесители",
+    "1901": "Радиаторы отопления",
+    "1902": "Сушилки для полотенец",
+    "1903": "Кухонные мойки",
+    "1904": "Душевые гарнитуры",
+    "1906": "Душевые кабины",
+    "1907": "Биде",
+    "1908": "Унитазы",
+    "2212": "Душевые шланги",
+    "2214": "Лейки для душа",
+    "2223": "Штанги и держатели для душа",
+    "2299": "Гигиенический душ",
+    "2313": "Скребки для ванной комнаты",
+    "2393": "Сиденья и крышки для унитаза",
+    "2398": "Вытяжные вентиляторы",
+    "2483": "Столешницы для ванной комнаты",
+    "2484": "Зеркала для ванной комнаты",
+    "2920": "Тумбы для ванной",
+    "2957": "Душевые поддоны",
+    "3049": "Раковины",
+    "3054": "Ванны",
+    "3165": "Аксессуары к кухонным мойкам",
     "3175": "Электрические ТЭНы для сушилок для полотенец",
     "3189": "Аксессуары к сушилке для полотенец и радиаторов",
     "3172": "Сифоны",
@@ -270,7 +314,6 @@ SKIP_REMAP_SOURCE_CATEGORIES = {
     "1205",
     "1219",
     "1223",
-    "1232",
     "1250",
     "1255",
     "1257",
@@ -285,6 +328,16 @@ QUESTION_SOURCE_CATEGORIES = {
     "1156",
     "1249",
     "1256",
+}
+
+# Старые сифонные разделы теперь являются дублями без нужных параметров.
+# Основной источник для Maudau: 1279 "Сифоны и гофры" -> 3172 "Сифоны".
+DROPPED_DUPLICATE_SIPHON_SOURCE_CATEGORIES = {
+    "1067",  # Сифоны для ванн
+    "1090",  # Сифоны, гофры
+    "1098",  # Сифоны для умывальника
+    "1118",  # Сифоны для душевых поддонов
+    "1278",  # Обратные клапана, сифоны для сбора конденсата
 }
 
 # Keep these source categories in feed even if offer is absent in Rozetka.
@@ -335,6 +388,9 @@ FORCED_ATTRS_BY_SOURCE_CATEGORY = {
     # Bathroom dispensers
     "1138": [("Призначення", "Для мыла")],
     "1264": [("Призначення", "Для антисептика")],
+    # Seats and covers
+    "1088": [("Призначення", "Для унитазов")],
+    "1089": [("Призначення", "Для биде")],
 }
 
 # Common RU source param name -> Maudau attribute nameUK
@@ -378,6 +434,10 @@ COMMON_PARAM_NAME_MAP = {
     "количество режимов": "Кількість режимів",
     "комплектация": "Комплектація",
     "особенности": "Особливості",
+    "страна регистрации бренда": "Країна",
+    "країна реєстрації бренду": "Країна",
+    "страна бренда": "Країна",
+    "країна бренду": "Країна",
 }
 
 # Category-specific overrides: target maudau category -> source param key -> maudau attr nameUK
@@ -421,6 +481,73 @@ CATEGORY_PARAM_NAME_OVERRIDES = {
         "управление": "Управління",
         "оснащение": "Особливості",
         "цвет": "Колір",
+    },
+    "1903": {
+        "форма мойки": "Форма",
+        "тип монтажу": "Тип установки",
+        "способ монтажа": "Тип установки",
+        "длинна, см": "Ширина мийки",
+        "длина, см": "Ширина мийки",
+        "ширина, см": "Глибина мийки",
+        "высота мойки, мм": "Висота мийки",
+        "высота, мм": "Висота мийки",
+        "высота, см": "Висота мийки",
+        "количество чаш": "Кількість чаш",
+    },
+    "1906": {
+        "тип дверей": "Тип відчинення дверей",
+        "форма": "Форма",
+        "цвет стекла": "Тип вітража",
+        "цвет профиля": "Колір профілю",
+        "материал профиля": "Матеріал профілю",
+        "материал поддона": "Матеріал піддону",
+        "толщина стекла, мм": "Товщина скла",
+    },
+    "1908": {
+        "тип унитаза": "Тип",
+        "тип установки": "Установка",
+        "смыв": "Смыв",
+        "подвод воды": "Підведення води",
+        "подведение воды": "Підведення води",
+        "выпуск воды": "Злив",
+        "сиденье": "Сидіння",
+        "бачок": "Бачок",
+        "микролифт": "Мікроліфт",
+    },
+    "3049": {
+        "установка": "Тип встановлення",
+        "тип установки": "Тип встановлення",
+        "способ монтажа": "Тип встановлення",
+        "материал": "Матеріал",
+        "отверстие под смеситель": "Отвір під змішувач",
+        "отвір під змішувач": "Отвір під змішувач",
+        "ширина, см": "Ширина",
+        "ширина, мм": "Ширина",
+        "глубина, см": "Глибина",
+        "глубина, мм": "Глибина",
+        "высота, см": "Висота",
+        "высота, мм": "Висота",
+        "форма раковины": "Форма",
+        "форма": "Форма",
+    },
+    "2957": {
+        "материал поддона": "Матеріал",
+        "форма": "Форма",
+        "цвет": "Колір",
+        "сторона": "Кут встановлення",
+        "поддон": "Висота",
+        "размер": "Размер",
+    },
+    "3054": {
+        "материал": "Матеріал",
+        "форма": "Форма",
+        "длинна, см": "Довжина",
+        "длина, см": "Довжина",
+        "длина, мм": "Довжина",
+        "ширина, см": "Ширина",
+        "ширина, мм": "Ширина",
+        "толщина, мм": "Товщина матеріалу",
+        "толщина материала, мм": "Товщина матеріалу",
     },
     "671": {
         "тип установки": "Установка",
@@ -533,6 +660,205 @@ CATEGORY_ATTR_VALUE_OVERRIDES = {
             "без перелива": "Нет",
         },
     },
+    "1906": {
+        "Форма": {
+            "четверть круга": "Полукруглая",
+            "чверть кола": "Полукруглая",
+            "полукруглая": "Полукруглая",
+            "полукруг": "Полукруглая",
+            "квадратная": "Квадратная",
+            "прямоугольная": "Прямоугольная",
+            "пятиугольная": "Пятиугольная",
+            "асимметричная": "Асимметричная",
+        },
+    },
+    "1908": {
+        "Установка": {
+            "подвесной": "Подвесные",
+            "подвесные": "Подвесные",
+            "подвесная": "Подвесные",
+            "підвісний": "Подвесные",
+            "напольный": "Напольные",
+            "напольные": "Напольные",
+            "напольная": "Напольные",
+        },
+        "Тип": {
+            "унитаз": "Чаши унитаза",
+            "чаша": "Чаши унитаза",
+            "компакт": "Унитазы-компакт",
+            "унитаз-компакт": "Унитазы-компакт",
+            "унитазы-компакт": "Унитазы-компакт",
+            "унитаз-биде": "Унитаз-биде",
+        },
+        "Підведення води": {
+            "нижний": "Нижний",
+            "нижнее": "Нижний",
+            "нижній": "Нижний",
+            "боковой": "Боковой",
+            "боковое": "Боковой",
+            "бічний": "Боковой",
+        },
+        "Злив": {
+            "горизонтальный": "Горизонтальный",
+            "горизонтальний": "Горизонтальный",
+            "вертикальный": "Вертикальный",
+            "вертикальний": "Вертикальный",
+            "косой": "Косой",
+            "косий": "Косой",
+        },
+        "Сидіння": {
+            "есть": "Есть",
+            "да": "Есть",
+            "нет": "Нет",
+        },
+        "Бачок": {
+            "есть": "Есть",
+            "да": "Есть",
+            "нет": "Нет",
+        },
+        "Мікроліфт": {
+            "есть": "Есть",
+            "да": "Есть",
+            "нет": "Нет",
+        },
+    },
+    "3049": {
+        "Матеріал": {
+            "нержавеющая сталь": "Нержавеющая сталь",
+            "нержавіюча сталь": "Нержавеющая сталь",
+            "искусственный камень": "Искусственный камень",
+            "штучний камінь": "Искусственный камень",
+            "керамика": "Керамика",
+            "кераміка": "Керамика",
+            "пластик": "Пластик",
+            "стекло": "Стекло",
+            "скло": "Стекло",
+        },
+        "Отвір під змішувач": {
+            "да": "Есть",
+            "есть": "Есть",
+            "так": "Есть",
+            "є": "Есть",
+            "нет": "Нет",
+            "ні": "Нет",
+            "немає": "Нет",
+        },
+        "Форма": {
+            "прямоугольная": "Прямоугольные",
+            "прямокутна": "Прямоугольные",
+            "асимметричная": "Асимметричные",
+            "асиметрична": "Асимметричные",
+            "квадратная": "Квадратные",
+            "квадратна": "Квадратные",
+            "овальная": "Овальные",
+            "овальна": "Овальные",
+            "круглая": "Круглые",
+            "кругла": "Круглые",
+            "полукруглая": "Полукруглые",
+            "напівкругла": "Полукруглые",
+        },
+        "Тип встановлення": {
+            "подвесной": "Подвесные",
+            "подвесной на кронштейны": "Подвесные",
+            "подвесной/мебельные (накладные)": "Подвесные",
+            "врезной в столешницу": "Врезные",
+            "врезной под столешницу": "Врезные",
+            "на столешницу (чаши)": "Накладные",
+            "накладной": "Накладные",
+            "мебельные (накладные)": "Накладные",
+            "напольный": "Напольные",
+        },
+        "Вид": {
+            "угловой": "Угловые",
+            "угловая": "Угловые",
+            "прямой": "Прямые",
+            "прямая": "Прямые",
+        },
+        "Призначення": {
+            "на столешницу": "На столешницу",
+            "под столешницу": "Под столешницу",
+            "на стиральную машину": "На стиральную машину",
+            "на тумбу": "На тумбу",
+        },
+    },
+    "2957": {
+        "Матеріал": {
+            "акрил": "Акрил",
+            "акриловый": "Акрил",
+            "акриловая": "Акрил",
+            "искусственный камень": "Искусственный камень",
+            "abs пластик": "Пластик",
+            "abs": "Пластик",
+            "puf": "Пластик",
+            "пластик": "Пластик",
+            "сталь": "Сталь",
+            "стальной": "Сталь",
+        },
+        "Форма": {
+            "прямоугольная": "Прямоугольные",
+            "прямоугольные": "Прямоугольные",
+            "асимметричная": "Асимметричные",
+            "асимметричные": "Асимметричные",
+            "квадратная": "Квадратные",
+            "квадратные": "Квадратные",
+            "четверть круга": "Полукруглые (угловые)",
+            "угловая (четверть круга)": "Полукруглые (угловые)",
+            "полукруглая": "Полукруглые (угловые)",
+            "пятиугольная": "Пятиугольные",
+            "пятиугольные": "Пятиугольные",
+        },
+        "Колір": {
+            "белый матовый": "Белый",
+            "белый": "Белый",
+            "графит": "Черный",
+            "черный матовый": "Черный",
+            "черный": "Черный",
+            "серый": "Серый",
+        },
+        "Кут встановлення": {
+            "левая": "Левый",
+            "левый": "Левый",
+            "ліва": "Левый",
+            "правый": "Правый",
+            "правая": "Правый",
+            "права": "Правый",
+        },
+        "Висота": {
+            "мелкий (до 20 см)": "Низкие (до 20 см)",
+            "мелкий": "Низкие (до 20 см)",
+            "низкий": "Низкие (до 20 см)",
+            "глубокий (более 20 см)": "Высокие (более 30 см)",
+            "глубокий": "Высокие (более 30 см)",
+            "высокий": "Высокие (более 30 см)",
+        },
+    },
+    "3054": {
+        "Матеріал": {
+            "акрил": "Акрил",
+            "акриловая": "Акрил",
+            "акриловый": "Акрил",
+            "литой акрил": "Акрил",
+            "сталь": "Сталь",
+            "стальная": "Сталь",
+            "чугун": "Чугун",
+            "чугунная": "Чугун",
+            "искусственный камень": "Искусственный камень",
+            "литой мрамор": "Литой мрамор",
+            "кварил": "Кварил",
+        },
+        "Форма": {
+            "прямоугольная": "Прямоугольные",
+            "прямокутна": "Прямоугольные",
+            "квадратная": "Квадратные",
+            "овальная": "Овальные",
+            "круглая": "Круглые",
+            "асимметричная левая": "Асимметричные левые",
+            "асимметричная правая": "Асимметричные правые",
+            "асимметричные левые": "Асимметричные левые",
+            "асимметричные правые": "Асимметричные правые",
+            "асимметричная": "Асимметричные левые",
+        },
+    },
 }
 
 ALLOWED_VENDORS = {"мойдодыр", "dusel"}
@@ -590,7 +916,8 @@ def load_local_env(path: Path) -> None:
         print(f"⚠ Не удалось прочитать .env ({path}): {exc}")
 
 
-load_local_env(LOCAL_ENV_FILE)
+for _env_path in LOCAL_ENV_CANDIDATES:
+    load_local_env(_env_path)
 TG_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TG_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
@@ -885,6 +1212,31 @@ def upsert_param(offer: ET._Element, param_name: str, value: str) -> bool:
     p.set("name", clean_name)
     p.text = clean_value
     return True
+
+
+def add_param_once(offer: ET._Element, param_name: str, value: str) -> bool:
+    clean_name = normalize_text(param_name)
+    clean_value = normalize_text(value)
+    if not clean_name or not clean_value:
+        return False
+    key = (normalize_key(clean_name), normalize_key(clean_value))
+    for param in offer.findall("param"):
+        if (normalize_key(param.get("name")), normalize_key(param.text)) == key:
+            return False
+    p = ET.SubElement(offer, "param")
+    p.set("name", clean_name)
+    p.text = clean_value
+    return True
+
+
+def remove_params_by_names(offer: ET._Element, names: set[str]) -> int:
+    name_keys = {normalize_key(n) for n in names}
+    removed = 0
+    for param in list(offer.findall("param")):
+        if normalize_key(param.get("name")) in name_keys:
+            offer.remove(param)
+            removed += 1
+    return removed
 
 
 def resolve_offer_id_raw(offer: ET._Element) -> str:
@@ -2217,7 +2569,17 @@ def cleanup_params(offer: ET._Element, target_category_id: str, merchant_catalog
         mapped_name = map_param_name(pname, target_category_id)
         canonical_name = attr_lookup.get(normalize_key(mapped_name), mapped_name)
         if attrs and canonical_name not in attrs:
-            offer.remove(p)
+            # Не режем рабочие параметры только из-за неполного справочника Maudau.
+            # GitHub-прогон без локального merchant_categories оставлял их в фиде;
+            # локальный справочник должен помогать канонизировать, а не ломать объем.
+            canonical_name = mapped_name
+            p.set("name", canonical_name)
+            p.text = pval
+            dedupe_key = (normalize_key(canonical_name), normalize_key(p.text))
+            if dedupe_key in dedupe:
+                offer.remove(p)
+                continue
+            dedupe.add(dedupe_key)
             continue
         p.set("name", canonical_name)
 
@@ -2225,7 +2587,12 @@ def cleanup_params(offer: ET._Element, target_category_id: str, merchant_catalog
         normalized_value = apply_category_value_override(target_category_id, canonical_name, pval)
         mapped_value = map_param_value_to_allowed(normalized_value, allowed_values)
         if allowed_values and normalize_text_key(mapped_value) not in allowed_values:
-            offer.remove(p)
+            p.text = normalized_value
+            dedupe_key = (normalize_key(canonical_name), normalize_key(p.text))
+            if dedupe_key in dedupe:
+                offer.remove(p)
+                continue
+            dedupe.add(dedupe_key)
             continue
         p.text = mapped_value
 
@@ -2293,6 +2660,892 @@ def cleanup_pictures(offer: ET._Element) -> None:
         kept += 1
         if kept > 12:
             offer.remove(pic)
+
+
+def reorder_offer_children_for_readability(offer: ET._Element) -> None:
+    """Keep bilingual names/descriptions together, then all params together."""
+    priority = {
+        "price": 10,
+        "currencyId": 20,
+        "categoryId": 30,
+        "picture": 40,
+        "vendorCode": 50,
+        "vendor": 60,
+        "country": 65,
+        "name_ru": 70,
+        "name_ua": 71,
+        "description_ru": 72,
+        "description_ua": 73,
+        "param": 90,
+    }
+    children = list(offer)
+    indexed = list(enumerate(children))
+    indexed.sort(key=lambda item: (priority.get(item[1].tag, 80), item[0]))
+    for child in children:
+        offer.remove(child)
+    for _, child in indexed:
+        child.tail = None
+        offer.append(child)
+
+
+def normalize_xml_spacing(root: ET._Element) -> None:
+    """Force deterministic pretty XML; imported feeds often carry broken tail whitespace."""
+    try:
+        ET.indent(root, space="  ")
+    except AttributeError:
+        # Fallback for older lxml versions.
+        def _indent(elem: ET._Element, level: int = 0) -> None:
+            children = list(elem)
+            if children:
+                elem.text = "\n" + "  " * (level + 1)
+                for child in children:
+                    _indent(child, level + 1)
+                children[-1].tail = "\n" + "  " * level
+            if level and not elem.tail:
+                elem.tail = "\n" + "  " * level
+
+        _indent(root)
+
+
+def offer_text_snapshot(offer: ET._Element) -> str:
+    parts: list[str] = []
+    for tag in ("name", "name_ru", "name_ua", "description", "description_ru", "description_ua"):
+        value = child_text(offer, tag)
+        if value:
+            parts.append(HTML_TAG_RE.sub(" ", value))
+    for param in offer.findall("param"):
+        value = compact_text(param.text or "")
+        if value:
+            parts.append(value)
+    return compact_text(" ".join(parts))
+
+
+DIMENSION_RE = re.compile(
+    r"(?<!\d)(\d{2,4}(?:[.,]\d+)?)\s*[xх×*]\s*(\d{2,4}(?:[.,]\d+)?)(?:\s*[xх×*]\s*(\d{2,4}(?:[.,]\d+)?))?(?!\d)",
+    re.IGNORECASE,
+)
+
+
+def _to_float_num(value: str) -> float | None:
+    try:
+        return float(str(value).replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+
+
+def dimension_value_to_cm(value: float) -> float:
+    # В этих фидах размеры моек/кабин часто идут в мм, если число явно большое.
+    return value / 10.0 if value > 130 else value
+
+
+def shower_dimension_value_to_cm(value: float) -> float:
+    # Для кабин значения 140/150/160 в названии обычно уже сантиметры.
+    # Миллиметры здесь начинаются с явных 3-4-значных высот/габаритов.
+    return value / 10.0 if value >= 300 else value
+
+
+def cm_text(value: float) -> str:
+    return f"{normalize_number(value)} см"
+
+
+def extract_dimension_triples(text: str) -> list[tuple[float, float, float | None]]:
+    result: list[tuple[float, float, float | None]] = []
+    for m in DIMENSION_RE.finditer(text or ""):
+        nums = [_to_float_num(g) for g in m.groups()]
+        if nums[0] is None or nums[1] is None:
+            continue
+        result.append((nums[0], nums[1], nums[2]))
+    return result
+
+
+def offer_name_text(offer: ET._Element) -> str:
+    return compact_text(" ".join(child_text(offer, tag) for tag in ("name", "name_ru", "name_ua")))
+
+
+def offer_description_text(offer: ET._Element) -> str:
+    return compact_text(
+        " ".join(child_text(offer, tag) for tag in ("description", "description_ru", "description_ua"))
+    )
+
+
+def first_size_pair(
+    texts: list[str],
+    *,
+    min_side: float,
+    max_side: float,
+    max_second_side: float | None = None,
+    converter=dimension_value_to_cm,
+) -> tuple[float, float, float | None] | None:
+    max_second = max_second_side if max_second_side is not None else max_side
+    for text in texts:
+        for a, b, c in extract_dimension_triples(text):
+            a_cm = converter(a)
+            b_cm = converter(b)
+            c_cm = converter(c) if c is not None else None
+            if min_side <= a_cm <= max_side and min_side <= b_cm <= max_second:
+                return a_cm, b_cm, c_cm
+    return None
+
+
+def pick_canonical_or_normalized_cm(
+    merchant_catalog: dict[str, dict],
+    target_category_id: str,
+    attr_name: str,
+    value_cm: float,
+) -> str:
+    value = cm_text(value_cm)
+    picked = pick_allowed_value(merchant_catalog, target_category_id, attr_name, [value])
+    if picked:
+        return picked
+    meta = merchant_catalog.get(target_category_id, {})
+    allowed = meta.get("attrs", {}).get(attr_name, {})
+    mapped = map_param_value_to_allowed(value, allowed)
+    return mapped or value
+
+
+def scalar_param_to_cm(value: str) -> float | None:
+    clean = compact_text(value)
+    if not clean:
+        return None
+    scalar = parse_scalar_with_unit(clean)
+    if scalar is not None:
+        num, unit = scalar
+        unit_key = normalize_unit_token(unit)
+        if unit_key == "мм":
+            return num / 10.0
+        return num
+    m = re.search(r"\d+(?:[.,]\d+)?", clean)
+    if not m:
+        return None
+    num = float(m.group(0).replace(",", "."))
+    return dimension_value_to_cm(num)
+
+
+def bath_dimension_range(attr_name: str, value_cm: float) -> str:
+    if attr_name == "Довжина":
+        ranges = [
+            (float("-inf"), 100, "До 100 см"),
+            (100, 120, "100 - 120 см"),
+            (121, 130, "121 - 130 см"),
+            (131, 140, "131 - 140 см"),
+            (141, 150, "141 - 150 см"),
+            (151, 160, "151 - 160 см"),
+            (161, 170, "161 - 170 см"),
+            (171, 180, "171 - 180 см"),
+            (181, 190, "181 - 190 см"),
+            (191, 200, "191 - 200 см"),
+            (201, float("inf"), "Более 200 см"),
+        ]
+    else:
+        ranges = [
+            (float("-inf"), 60, "До 60 см"),
+            (60, 70, "60 - 70 см"),
+            (71, 80, "71 - 80 см"),
+            (81, 90, "81 - 90 см"),
+            (91, 100, "91 - 100 см"),
+            (101, 110, "101 - 110 см"),
+            (111, 120, "111 - 120 см"),
+            (121, 150, "121 - 150 см"),
+            (151, float("inf"), "Более 150 см"),
+        ]
+    for lo, hi, label in ranges:
+        if lo <= value_cm <= hi:
+            return label
+    return cm_text(value_cm)
+
+
+def upsert_bath_dimension_range(offer: ET._Element, attr_name: str, value_cm: float) -> int:
+    return upsert_param(offer, attr_name, bath_dimension_range(attr_name, value_cm))
+
+
+def basin_dimension_range(attr_name: str, value_cm: float) -> str:
+    if attr_name == "Ширина":
+        ranges = [
+            (float("-inf"), 30, "До 30 см"),
+            (30, 40, "30 - 40 см"),
+            (40, 50, "40.1 - 50 см"),
+            (50, 60, "50.1 - 60 см"),
+            (60, 70, "60.1 - 70 см"),
+            (70, 80, "70.1 - 80 см"),
+            (80, 100, "80.1 -100 см"),
+            (100, float("inf"), "Более 100 см"),
+        ]
+    else:
+        ranges = [
+            (float("-inf"), 30, "До 30 см"),
+            (30, 40, "30 - 40 см"),
+            (40, 50, "40.1 - 50 см"),
+            (50, 60, "50.1 - 60 см"),
+            (60, 80, "60.1 - 80 см"),
+            (80, float("inf"), "Более 80 см"),
+        ]
+
+    for lo, hi, label in ranges:
+        if lo <= value_cm <= hi:
+            return label
+    return cm_text(value_cm)
+
+
+def upsert_basin_dimension_range(offer: ET._Element, attr_name: str, value_cm: float) -> int:
+    return upsert_param(offer, attr_name, basin_dimension_range(attr_name, value_cm))
+
+
+def text_has_any(text_key: str, tokens: tuple[str, ...]) -> bool:
+    return any(token in text_key for token in tokens)
+
+
+def value_looks_exact_cm(value: str) -> bool:
+    clean = compact_text(value)
+    return bool(re.fullmatch(r"\d+(?:[.,]\d+)?\s*см", clean, flags=re.IGNORECASE))
+
+
+def remove_non_exact_dimension_params(offer: ET._Element, names: set[str]) -> int:
+    removed = 0
+    name_keys = {normalize_key(name) for name in names}
+    for param in list(offer.findall("param")):
+        if normalize_key(param.get("name")) not in name_keys:
+            continue
+        if value_looks_exact_cm(param.text or ""):
+            continue
+        offer.remove(param)
+        removed += 1
+    return removed
+
+
+def extract_shower_dimensions_from_texts(texts: list[str]) -> tuple[float, float, float | None] | None:
+    for text in texts:
+        for a, b, c in extract_dimension_triples(text):
+            a_cm = shower_dimension_value_to_cm(a)
+            b_cm = shower_dimension_value_to_cm(b)
+            c_cm = shower_dimension_value_to_cm(c) if c is not None else None
+            if c_cm is not None and 150 <= a_cm <= 260 and 60 <= b_cm <= 220 and 60 <= c_cm <= 220:
+                # Формат ВхШхД: высота не должна попасть в ширину.
+                return max(b_cm, c_cm), min(b_cm, c_cm), a_cm
+            if 60 <= a_cm <= 220 and 60 <= b_cm <= 220:
+                return a_cm, b_cm, c_cm if c_cm is not None and c_cm >= 150 else None
+    return None
+
+
+def infer_kitchen_sink_params(
+    offer: ET._Element,
+    merchant_catalog: dict[str, dict],
+    source_text: str,
+) -> int:
+    changed = 0
+    text_key = normalize_text_key(source_text)
+    shape_key = normalize_text_key(find_param_value(offer, "Форма") or find_param_value(offer, "Форма мойки"))
+
+    # Старые общие имена заменяем точными Maudau-атрибутами.
+    changed += remove_params_by_names(
+        offer,
+        {
+            "Ширина",
+            "Довжина",
+            "Глибина",
+            "Висота",
+            "Форма мойки",
+            "Тип монтажу",
+            "Перелив",
+            "Отверстие под смеситель",
+        },
+    )
+    # Точные поля Maudau не должны получать старые диапазоны вида 40-50.
+    # Если точный размер не найден, лучше не передавать такой мусор как значение точного фильтра.
+    changed += remove_non_exact_dimension_params(
+        offer,
+        {"Ширина мийки", "Глибина мийки", "Висота мийки"},
+    )
+
+    size_hit = first_size_pair(
+        [
+            find_param_value(offer, "Размер"),
+            find_param_value(offer, "Розмір"),
+            offer_name_text(offer),
+            offer_description_text(offer),
+            source_text,
+        ],
+        min_side=15,
+        max_side=140,
+    )
+    if size_hit:
+        # Для моек берём первый явный габаритный шаблон: Ш x Г x В.
+        width_cm, depth_cm, height_cm = size_hit
+        if "круг" in shape_key and height_cm is None and depth_cm <= 30 and width_cm >= 30:
+            # Круглая мойка 490x180: 490 - диаметр, 180 - высота чаши.
+            height_cm = depth_cm
+            depth_cm = width_cm
+        if "круг" in shape_key:
+            max_side = max(width_cm, depth_cm)
+            width_cm = max_side
+            depth_cm = max_side
+        changed += remove_params_by_names(offer, {"Ширина мийки", "Глибина мийки", "Висота мийки"})
+        if height_cm is not None:
+            if height_cm > max(width_cm, depth_cm):
+                # Защита от грубой ошибки единиц: высота мойки не может быть больше ширины/глубины.
+                maybe_cm = height_cm / 10.0
+                if maybe_cm <= max(width_cm, depth_cm):
+                    height_cm = maybe_cm
+            changed += upsert_param(
+                offer,
+                "Висота мийки",
+                pick_canonical_or_normalized_cm(merchant_catalog, "1903", "Висота мийки", height_cm),
+            )
+        changed += upsert_param(
+            offer,
+            "Ширина мийки",
+            pick_canonical_or_normalized_cm(merchant_catalog, "1903", "Ширина мийки", width_cm),
+        )
+        changed += upsert_param(
+            offer,
+            "Глибина мийки",
+            pick_canonical_or_normalized_cm(merchant_catalog, "1903", "Глибина мийки", depth_cm),
+        )
+
+    bowls = find_param_value(offer, "Кількість чаш") or find_param_value(offer, "Количество чаш")
+    bowls_key = normalize_text_key(bowls)
+    if "1,5" in bowls_key or "1.5" in bowls_key:
+        changed += upsert_param(offer, "Кількість чаш", "Одна основная и одна дополнительная")
+    elif re.search(r"\b2\b", bowls_key):
+        changed += upsert_param(offer, "Кількість чаш", "Две основных")
+    elif bowls_key:
+        changed += upsert_param(offer, "Кількість чаш", "Одна основная")
+    if bowls_key:
+        changed += upsert_param(offer, "Наявність крила", "Есть" if "крыл" in bowls_key or "крил" in bowls_key else "Нет")
+
+    if "перелив" in text_key:
+        changed += add_param_once(offer, "Особливості", "С переливом")
+    if text_has_any(text_key, ("отверст", "отвір", "смесител", "змішувач")):
+        changed += add_param_once(offer, "Особливості", "С отверстием под смеситель")
+    if "сифон" in text_key:
+        changed += add_param_once(offer, "В комплекті", "Сифон")
+    if "дозатор" in text_key:
+        changed += add_param_once(offer, "В комплекті", "Дозатор")
+    if "корзин" in text_key or "кошик" in text_key:
+        changed += add_param_once(offer, "В комплекті", "Корзина")
+    if "смесител" in text_key or "змішувач" in text_key:
+        changed += add_param_once(offer, "В комплекті", "Смеситель")
+
+    surface_map = (
+        ("микродекор", "Микродекор (рифленная)"),
+        ("мікродекор", "Микродекор (рифленная)"),
+        ("декор", "Декор (рифленая)"),
+        ("сатин", "Сатиновая"),
+        ("satin", "Сатиновая"),
+        ("полирован", "Полированная"),
+        ("полірован", "Полированная"),
+        ("матов", "Матовая"),
+        ("браш", "Брашированная"),
+    )
+    for token, value in surface_map:
+        if token in text_key:
+            changed += upsert_param(offer, "Поверхня", value)
+            break
+
+    return changed
+
+
+def infer_shower_cabin_params(
+    offer: ET._Element,
+    merchant_catalog: dict[str, dict],
+    source_text: str,
+) -> int:
+    changed = 0
+    text_key = normalize_text_key(source_text)
+
+    changed += remove_params_by_names(offer, {"Размер", "Розмір", "Поддон", "Піддон"})
+
+    width_cm = depth_cm = height_cm = None
+
+    # Для кабин первое число из "Размер=120x80" всегда ширина, второе - глубина.
+    # Описание используем только после параметра/названия, чтобы не ловить высоту поддона или упаковку.
+    size_hit = extract_shower_dimensions_from_texts(
+        [
+            find_param_value(offer, "Размер"),
+            find_param_value(offer, "Розмір"),
+            offer_name_text(offer),
+        ]
+    )
+    if size_hit is None:
+        size_hit = extract_shower_dimensions_from_texts([offer_description_text(offer), source_text])
+    if size_hit:
+        width_cm, depth_cm, c_cm = size_hit
+        if c_cm is not None and c_cm >= 150:
+            height_cm = c_cm
+
+    explicit_height_patterns = [
+        r"габариты изделия[^:;,.]{0,35}[: ]+(\d{3,4}(?:[.,]\d+)?)\s*[xх×*]",
+        r"габарити виробу[^:;,.]{0,35}[: ]+(\d{3,4}(?:[.,]\d+)?)\s*[xх×*]",
+        r"высота[^:;,.]{0,35}[: ]+(\d{3,4}(?:[.,]\d+)?)\s*мм",
+        r"высота[^:;,.]{0,35}[: ]+(\d{2,3}(?:[.,]\d+)?)\s*см",
+        r"висота[^:;,.]{0,35}[: ]+(\d{3,4}(?:[.,]\d+)?)\s*мм",
+        r"висота[^:;,.]{0,35}[: ]+(\d{2,3}(?:[.,]\d+)?)\s*см",
+    ]
+    for pattern in explicit_height_patterns:
+        m = re.search(pattern, source_text, flags=re.IGNORECASE)
+        if m:
+            raw = _to_float_num(m.group(1))
+            if raw is not None:
+                height_cm = shower_dimension_value_to_cm(raw)
+                break
+
+    if width_cm is not None:
+        changed += upsert_param(
+            offer,
+            "Ширина",
+            pick_canonical_or_normalized_cm(merchant_catalog, "1906", "Ширина", width_cm),
+        )
+    if depth_cm is not None:
+        changed += upsert_param(
+            offer,
+            "Довжина",
+            pick_canonical_or_normalized_cm(merchant_catalog, "1906", "Довжина", depth_cm),
+        )
+    if height_cm is None and width_cm is not None and depth_cm is not None:
+        height_cm = 185
+    if height_cm is not None:
+        if height_cm < 150:
+            height_cm = 185
+        changed += upsert_param(
+            offer,
+            "Висота",
+            pick_canonical_or_normalized_cm(merchant_catalog, "1906", "Висота", height_cm),
+        )
+
+    if "без поддон" in text_key or "без піддон" in text_key:
+        changed += upsert_param(offer, "Піддон", "Не предполагается")
+    elif "поддон" in text_key or "піддон" in text_key:
+        changed += upsert_param(offer, "Піддон", "Входит в комплект")
+
+    if "раздвиж" in text_key or "розсув" in text_key:
+        changed += upsert_param(offer, "Тип відчинення дверей", "Раздвижной")
+    elif "распаш" in text_key or "орн" in text_key:
+        changed += upsert_param(offer, "Тип відчинення дверей", "Распашной")
+    elif "склад" in text_key or "гармош" in text_key:
+        changed += upsert_param(offer, "Тип відчинення дверей", "Гармошка")
+
+    if "прозрач" in text_key or "прозор" in text_key:
+        changed += upsert_param(offer, "Тип вітража", "Прозрачный")
+    elif "тонир" in text_key or "тонован" in text_key or "коричнев" in text_key:
+        changed += upsert_param(offer, "Тип вітража", "Тонированный")
+    elif "матов" in text_key or "фабрик" in text_key or "шинш" in text_key:
+        changed += upsert_param(offer, "Тип вітража", "Матовый")
+    if "стекл" in text_key or "скл" in text_key:
+        changed += upsert_param(offer, "Матеріал вітража", "Стекло")
+
+    shape = normalize_text_key(find_param_value(offer, "Форма"))
+    shape_probe = " ".join([shape, text_key])
+    if "четверть круга" in shape_probe or "чверть кола" in shape_probe or "полукруг" in shape_probe:
+        changed += upsert_param(offer, "Форма", "Полукруглая")
+    elif "квадрат" in shape_probe:
+        changed += upsert_param(offer, "Форма", "Квадратная")
+    elif "прямоуголь" in shape_probe or "прямокут" in shape_probe:
+        changed += upsert_param(offer, "Форма", "Прямоугольная")
+    elif "пятиуг" in shape_probe or "п'ятикут" in shape_probe:
+        changed += upsert_param(offer, "Форма", "Пятиугольная")
+    elif "асимметр" in shape_probe:
+        changed += upsert_param(offer, "Форма", "Асимметричная")
+
+    return changed
+
+
+def infer_shower_tray_params(
+    offer: ET._Element,
+    merchant_catalog: dict[str, dict],
+) -> int:
+    changed = 0
+
+    changed += upsert_param(offer, "Тип", "Душевые поддоны")
+
+    size_hit = first_size_pair(
+        [find_param_value(offer, "Размер"), find_param_value(offer, "Розмір")],
+        min_side=40,
+        max_side=220,
+        max_second_side=180,
+        converter=dimension_value_to_cm,
+    )
+    if size_hit:
+        length_cm, width_cm, _height_cm = size_hit
+        changed += upsert_param(
+            offer,
+            "Довжина",
+            pick_canonical_or_normalized_cm(merchant_catalog, "2957", "Довжина", length_cm),
+        )
+        changed += upsert_param(
+            offer,
+            "Ширина",
+            pick_canonical_or_normalized_cm(merchant_catalog, "2957", "Ширина", width_cm),
+        )
+        changed += remove_params_by_names(offer, {"Размер", "Розмір"})
+
+    shape_key = normalize_text_key(find_param_value(offer, "Форма"))
+    if "четверть круга" in shape_key or "чверть кола" in shape_key or "углов" in shape_key:
+        changed += upsert_param(offer, "Форма", "Полукруглые (угловые)")
+    elif "прямоуг" in shape_key or "прямокут" in shape_key:
+        changed += upsert_param(offer, "Форма", "Прямоугольные")
+    elif "асимметр" in shape_key or "асиметр" in shape_key:
+        changed += upsert_param(offer, "Форма", "Асимметричные")
+    elif "квадрат" in shape_key:
+        changed += upsert_param(offer, "Форма", "Квадратные")
+    elif "пятиуг" in shape_key or "п'ятикут" in shape_key:
+        changed += upsert_param(offer, "Форма", "Пятиугольные")
+
+    material = find_param_value(offer, "Матеріал") or find_param_value(offer, "Материал поддона")
+    material_key = normalize_text_key(material)
+    if "искусственный камень" in material_key:
+        changed += upsert_param(offer, "Матеріал", "Искусственный камень")
+    elif "акрил" in material_key:
+        changed += upsert_param(offer, "Матеріал", "Акрил")
+    elif "abs" in material_key or "puf" in material_key or "пластик" in material_key:
+        changed += upsert_param(offer, "Матеріал", "Пластик")
+    elif "сталь" in material_key:
+        changed += upsert_param(offer, "Матеріал", "Сталь")
+
+    side = find_param_value(offer, "Кут встановлення") or find_param_value(offer, "Сторона")
+    side_key = normalize_text_key(side)
+    if "лев" in side_key or "лів" in side_key:
+        changed += upsert_param(offer, "Кут встановлення", "Левый")
+    elif "прав" in side_key:
+        changed += upsert_param(offer, "Кут встановлення", "Правый")
+
+    tray_height = find_param_value(offer, "Висота") or find_param_value(offer, "Піддон") or find_param_value(offer, "Поддон")
+    tray_height_key = normalize_text_key(tray_height)
+    if "мелк" in tray_height_key or "низк" in tray_height_key or "до 20" in tray_height_key:
+        changed += upsert_param(offer, "Висота", "Низкие (до 20 см)")
+    elif "глуб" in tray_height_key or "высок" in tray_height_key or "более 20" in tray_height_key:
+        changed += upsert_param(offer, "Висота", "Высокие (более 30 см)")
+    changed += remove_params_by_names(offer, {"Піддон", "Поддон"})
+
+    name_key = normalize_text_key(offer_name_text(offer))
+    explicit_siphon = find_param_value(offer, "Сифон")
+    explicit_siphon_key = normalize_text_key(explicit_siphon)
+    if "сифон" in explicit_siphon_key or "сифон" in name_key:
+        changed += upsert_param(offer, "Сифон", "Есть")
+    elif explicit_siphon_key in {"нет", "ні", "немає"} or not explicit_siphon_key:
+        changed += upsert_param(offer, "Сифон", "Нет")
+
+    return changed
+
+
+def infer_bath_params(
+    offer: ET._Element,
+    source_category_id: str,
+    source_text: str,
+) -> int:
+    changed = 0
+    text_key = normalize_text_key(source_text)
+
+    material_by_source = {
+        "1059": "Акрил",
+        "1060": "Сталь",
+        "1061": "Чугун",
+    }
+    material = ""
+    if source_category_id in material_by_source:
+        material = material_by_source[source_category_id]
+    elif source_category_id == "1062":
+        if "кварил" in text_key:
+            material = "Кварил"
+        elif "литой мрамор" in text_key or "литого мрамора" in text_key:
+            material = "Литой мрамор"
+        else:
+            material = "Искусственный камень"
+    else:
+        material_raw = find_param_value(offer, "Матеріал") or find_param_value(offer, "Материал")
+        material_key = normalize_text_key(material_raw)
+        if "акрил" in material_key:
+            material = "Акрил"
+        elif "сталь" in material_key:
+            material = "Сталь"
+        elif "чугун" in material_key:
+            material = "Чугун"
+        elif "кварил" in material_key:
+            material = "Кварил"
+        elif "мрамор" in material_key:
+            material = "Литой мрамор"
+        elif "камень" in material_key:
+            material = "Искусственный камень"
+    if material:
+        changed += upsert_param(offer, "Матеріал", material)
+
+    length_cm = scalar_param_to_cm(find_param_value(offer, "Довжина") or find_param_value(offer, "Длина, см"))
+    width_cm = scalar_param_to_cm(find_param_value(offer, "Ширина") or find_param_value(offer, "Ширина, см"))
+    if length_cm is None or width_cm is None:
+        size_hit = first_size_pair(
+            [offer_name_text(offer), offer_description_text(offer), source_text],
+            min_side=45,
+            max_side=260,
+            max_second_side=180,
+            converter=dimension_value_to_cm,
+        )
+        if size_hit:
+            a_cm, b_cm, _c_cm = size_hit
+            if length_cm is None:
+                length_cm = max(a_cm, b_cm)
+            if width_cm is None:
+                width_cm = min(a_cm, b_cm)
+    if length_cm is not None and length_cm > 0:
+        changed += upsert_bath_dimension_range(offer, "Довжина", length_cm)
+    if width_cm is not None and width_cm > 0:
+        changed += upsert_bath_dimension_range(offer, "Ширина", width_cm)
+
+    thickness = find_param_value(offer, "Товщина матеріалу") or find_param_value(offer, "Толщина, мм")
+    thickness_scalar = parse_scalar_with_unit(thickness)
+    if thickness_scalar is not None:
+        num, unit = thickness_scalar
+        if normalize_unit_token(unit) == "см":
+            num *= 10
+        changed += upsert_param(offer, "Товщина матеріалу", f"{normalize_number(num)} мм")
+
+    shape_key = normalize_text_key(find_param_value(offer, "Форма"))
+    side_key = normalize_text_key(find_param_value(offer, "Сторона"))
+    if "асимметр" in shape_key or "асиметр" in shape_key:
+        if "лев" in side_key or "лів" in side_key:
+            changed += upsert_param(offer, "Форма", "Асимметричные левые")
+        elif "прав" in side_key:
+            changed += upsert_param(offer, "Форма", "Асимметричные правые")
+        elif text_has_any(text_key, (" левая", " лів", " ліва", " left")):
+            changed += upsert_param(offer, "Форма", "Асимметричные левые")
+        elif text_has_any(text_key, (" правая", " прав", " права", " right")):
+            changed += upsert_param(offer, "Форма", "Асимметричные правые")
+        else:
+            changed += upsert_param(offer, "Форма", "Асимметричные левые")
+    elif "прямоуг" in shape_key or "прямокут" in shape_key:
+        changed += upsert_param(offer, "Форма", "Прямоугольные")
+    elif "квадрат" in shape_key:
+        changed += upsert_param(offer, "Форма", "Квадратные")
+    elif "овал" in shape_key:
+        changed += upsert_param(offer, "Форма", "Овальные")
+    elif "круг" in shape_key:
+        changed += upsert_param(offer, "Форма", "Круглые")
+
+    return changed
+
+
+def infer_basin_params(offer: ET._Element, source_text: str) -> int:
+    changed = 0
+    text_key = normalize_text_key(source_text)
+
+    width_cm = scalar_param_to_cm(find_param_value(offer, "Ширина") or find_param_value(offer, "Ширина, см"))
+    depth_cm = scalar_param_to_cm(find_param_value(offer, "Глибина") or find_param_value(offer, "Глубина, см"))
+    if width_cm is not None:
+        changed += upsert_basin_dimension_range(offer, "Ширина", width_cm)
+    if depth_cm is not None:
+        changed += upsert_basin_dimension_range(offer, "Глибина", depth_cm)
+
+    install_value = (
+        find_param_value(offer, "Тип встановлення")
+        or find_param_value(offer, "Встановлення")
+        or find_param_value(offer, "Установка")
+        or find_param_value(offer, "Тип установки")
+    )
+    install_key = normalize_text_key(install_value)
+    install_is_floor = False
+    if "подвесной/мебельные" in install_key or "подвесной мебельные" in install_key:
+        changed += upsert_param(offer, "Вид", "Прямые")
+        changed += upsert_param(offer, "Тип встановлення", "Подвесные")
+        changed += upsert_param(offer, "Призначення", "На столешницу")
+    elif "врезной под столешницу" in install_key or "врізний під стільницю" in install_key:
+        changed += upsert_param(offer, "Вид", "Прямые")
+        changed += upsert_param(offer, "Тип встановлення", "Врезные")
+        changed += upsert_param(offer, "Призначення", "Под столешницу")
+    elif "врезной в столешницу" in install_key or "врізний в стільницю" in install_key:
+        changed += upsert_param(offer, "Вид", "Прямые")
+        changed += upsert_param(offer, "Тип встановлення", "Врезные")
+    elif "на столешницу" in install_key or "наклад" in install_key or "чаш" in install_key:
+        changed += upsert_param(offer, "Вид", "Прямые")
+        changed += upsert_param(offer, "Тип встановлення", "Накладные")
+        changed += upsert_param(offer, "Призначення", "На столешницу")
+    elif "над стиральной" in install_key or "на стиральную" in install_key or "над пральн" in install_key:
+        changed += upsert_param(offer, "Вид", "Прямые")
+        changed += upsert_param(offer, "Призначення", "На стиральную машину")
+    elif "мебель" in install_key or "на тумбу" in install_key:
+        changed += upsert_param(offer, "Вид", "Прямые")
+        changed += upsert_param(offer, "Тип встановлення", "Накладные")
+        changed += upsert_param(offer, "Призначення", "На тумбу")
+    elif "наполь" in install_key:
+        install_is_floor = True
+        changed += upsert_param(offer, "Вид", "Прямые")
+        changed += upsert_param(offer, "Тип встановлення", "Напольные")
+    elif "углов" in install_key or "кутов" in install_key:
+        changed += upsert_param(offer, "Вид", "Угловые")
+        changed += upsert_param(offer, "Тип встановлення", "Подвесные")
+    elif "подвес" in install_key or "підвіс" in install_key:
+        changed += upsert_param(offer, "Вид", "Прямые")
+        changed += upsert_param(offer, "Тип встановлення", "Подвесные")
+
+    if not install_is_floor:
+        install_is_floor = normalize_text_key(find_param_value(offer, "Тип встановлення")) == "напольные"
+    changed += upsert_param(offer, "Висота", "Более 40 см" if install_is_floor else "10 - 20 см")
+    changed += remove_params_by_names(offer, {"Встановлення"})
+
+    material = find_param_value(offer, "Матеріал") or find_param_value(offer, "Материал")
+    material_key = normalize_text_key(material)
+    if "нержав" in material_key:
+        changed += upsert_param(offer, "Матеріал", "Нержавеющая сталь")
+    elif "искусствен" in material_key or "штучн" in material_key:
+        changed += upsert_param(offer, "Матеріал", "Искусственный камень")
+    elif "керамик" in material_key or "керамік" in material_key:
+        changed += upsert_param(offer, "Матеріал", "Керамика")
+    elif "пластик" in material_key:
+        changed += upsert_param(offer, "Матеріал", "Пластик")
+    elif "стекл" in material_key or "скл" in material_key:
+        changed += upsert_param(offer, "Матеріал", "Стекло")
+
+    mixer_hole = find_param_value(offer, "Отвір під змішувач") or find_param_value(offer, "Отверстие под смеситель")
+    mixer_hole_key = normalize_text_key(mixer_hole)
+    if mixer_hole_key in {"да", "есть", "так", "є"}:
+        changed += upsert_param(offer, "Отвір під змішувач", "Есть")
+    elif mixer_hole_key in {"нет", "ні", "немає"}:
+        changed += upsert_param(offer, "Отвір під змішувач", "Нет")
+
+    shape = find_param_value(offer, "Форма") or find_param_value(offer, "Форма раковины")
+    shape_key = normalize_text_key(shape)
+    if "две чаш" in shape_key or "дві чаш" in shape_key:
+        changed += upsert_param(offer, "Кількість чаш", "2")
+    elif "чаша слева" in shape_key or "чаша зліва" in shape_key:
+        changed += upsert_param(offer, "Крило раковини", "Слева")
+    elif "чаша справа" in shape_key or "чаша праворуч" in shape_key:
+        changed += upsert_param(offer, "Крило раковини", "Справа")
+    elif "углов" in shape_key or "кутов" in shape_key:
+        changed += upsert_param(offer, "Вид", "Угловые")
+    elif "прямоуг" in shape_key or "прямокут" in shape_key:
+        changed += upsert_param(offer, "Форма", "Прямоугольные")
+    elif "асимметр" in shape_key or "асиметр" in shape_key:
+        changed += upsert_param(offer, "Форма", "Асимметричные")
+    elif "квадрат" in shape_key:
+        changed += upsert_param(offer, "Форма", "Квадратные")
+    elif "овал" in shape_key:
+        changed += upsert_param(offer, "Форма", "Овальные")
+    elif "полукруг" in shape_key or "напівкруг" in shape_key:
+        changed += upsert_param(offer, "Форма", "Полукруглые")
+    elif "круг" in shape_key:
+        changed += upsert_param(offer, "Форма", "Круглые")
+
+    overflow = find_param_value(offer, "Перелив")
+    overflow_key = normalize_text_key(overflow)
+    if overflow_key in {"есть", "да", "так", "є"} or "с переливом" in text_key or "з переливом" in text_key:
+        changed += upsert_param(offer, "Перелив", "Есть")
+    elif overflow_key in {"нет", "ні", "немає"} or "без перелива" in text_key or "без переливу" in text_key:
+        changed += upsert_param(offer, "Перелив", "Нет")
+
+    return changed
+
+
+def infer_toilet_params(offer: ET._Element, source_category_id: str, source_text: str) -> int:
+    _ = source_text
+    changed = 0
+    source_toilet_type_value = find_param_value(offer, "Тип") or find_param_value(offer, "Тип унитаза")
+
+    # Жесткие правила листа "Унитазы": главный источник — наш раздел.
+    if source_category_id in {"1080", "1081"}:
+        changed += upsert_param(offer, "Установка", "Подвесные")
+        changed += upsert_param(offer, "Тип", "Унитазы под инсталляцию")
+    elif source_category_id in {"1082", "1083"}:
+        changed += upsert_param(offer, "Установка", "Напольные")
+        changed += upsert_param(offer, "Тип", "Чаши унитаза")
+    elif source_category_id == "1084":
+        changed += upsert_param(offer, "Установка", "Напольные")
+        changed += upsert_param(offer, "Тип", "Унитазы-компакт")
+        changed += upsert_param(offer, "Бачок", "Есть")
+
+    # Строки 10-18: параметры унитазов.
+    flush_value = find_param_value(offer, "Смыв")
+    flush_key = normalize_text_key(flush_value)
+    if "безобод" in flush_key or "tornado" in flush_key:
+        changed += add_param_once(offer, "Особливості", "Безободковые")
+        changed += remove_params_by_names(offer, {"Смыв"})
+    elif "обод" in flush_key:
+        changed += upsert_param(offer, "Смыв", "ободковый")
+
+    water_in = find_param_value(offer, "Підведення води") or find_param_value(offer, "Подвод воды")
+    water_key = normalize_text_key(water_in)
+    if "ниж" in water_key:
+        changed += upsert_param(offer, "Підведення води", "Нижний")
+    elif "бок" in water_key or "біч" in water_key:
+        changed += upsert_param(offer, "Підведення води", "Боковой")
+    elif "зад" in water_key:
+        changed += upsert_param(offer, "Підведення води", "Задний")
+    elif "верх" in water_key:
+        changed += upsert_param(offer, "Підведення води", "Верхний")
+
+    outlet = find_param_value(offer, "Злив") or find_param_value(offer, "Выпуск воды")
+    outlet_key = normalize_text_key(outlet)
+    if "гориз" in outlet_key:
+        changed += upsert_param(offer, "Злив", "Горизонтальный")
+    elif "вертик" in outlet_key:
+        changed += upsert_param(offer, "Злив", "Вертикальный")
+    elif "кос" in outlet_key:
+        changed += upsert_param(offer, "Злив", "Косой")
+    elif "универс" in outlet_key:
+        changed += upsert_param(offer, "Злив", "Универсальный")
+
+    # Строки 19-20: монтаж, если он явно есть отдельным параметром.
+    mount_value = find_param_value(offer, "Монтаж")
+    mount_key = normalize_text_key(mount_value)
+    if "подвес" in mount_key or "підвіс" in mount_key:
+        changed += upsert_param(offer, "Установка", "Подвесные")
+    elif "наполь" in mount_key:
+        changed += upsert_param(offer, "Установка", "Напольные")
+
+    # Строки 21-22: тип унитаза.
+    toilet_type_key = normalize_text_key(source_toilet_type_value)
+    if "унитаз-биде" in toilet_type_key or "унітаз-біде" in toilet_type_key:
+        changed += upsert_param(offer, "Тип", "Унитаз-биде")
+    if "инвалид" in toilet_type_key or "інвалід" in toilet_type_key:
+        changed += add_param_once(offer, "Особливості", "Для людей с ограниченными физическими возможностями")
+
+    # Строки 23-24: Soft Close / микролифт.
+    soft_close_value = (
+        find_param_value(offer, "Функция Soft Close")
+        or find_param_value(offer, "Soft Close")
+        or find_param_value(offer, "Мікроліфт")
+        or find_param_value(offer, "Микролифт")
+    )
+    soft_close_key = normalize_text_key(soft_close_value)
+    if soft_close_key in {"да", "есть", "так", "є"}:
+        changed += upsert_param(offer, "Мікроліфт", "Есть")
+    elif soft_close_key in {"нет", "ні", "немає"}:
+        changed += upsert_param(offer, "Мікроліфт", "Нет")
+
+    return changed
+
+
+def apply_minimal_derived_maudau_rules(
+    offer: ET._Element,
+    source_category_id: str,
+    target_category_id: str,
+    source_text: str,
+    merchant_catalog: dict[str, dict],
+) -> int:
+    changed = 0
+    text_key = normalize_text_key(source_text)
+
+    # 1232 "Тумбы со столешницей" -> 2920 "Тумбы для ванной".
+    # Комплектацию ставим только при явной опоре на умывальник/раковину.
+    if source_category_id == "1232" and target_category_id == "2920":
+        if any(token in text_key for token in ("умывальник", "раковин", "мийк", "умивальник")):
+            if upsert_param(offer, "Комплектація", "С умывальником"):
+                changed += 1
+
+    if target_category_id == "1903":
+        changed += infer_kitchen_sink_params(offer, merchant_catalog, source_text)
+
+    if target_category_id == "1906":
+        changed += infer_shower_cabin_params(offer, merchant_catalog, source_text)
+
+    if target_category_id == "2957":
+        changed += infer_shower_tray_params(offer, merchant_catalog)
+
+    if target_category_id == "3049":
+        changed += infer_basin_params(offer, source_text)
+
+    if target_category_id == "3054":
+        changed += infer_bath_params(offer, source_category_id, source_text)
+
+    if target_category_id == "1908":
+        changed += infer_toilet_params(offer, source_category_id, source_text)
+
+    return changed
 
 
 def normalize_offer_id(offer: ET._Element) -> bool:
@@ -2374,23 +3627,25 @@ def remap_offer_category(
         return True, source_id, source_id, 0, source_id in merchant_catalog
 
     target_id = resolve_target_category_id(offer, source_id)
-    target_known = target_id in merchant_catalog
+    target_known = target_id in merchant_catalog or target_id in MAUDAU_CATEGORY_NAME_OVERRIDES
 
     set_or_create(offer, "categoryId", target_id)
     source_name = source_category_names.get(source_id, "")
     forced_changes = 0
-    if target_known:
+    if target_id in merchant_catalog:
         forced_changes = apply_forced_category_params(offer, source_id, source_name, target_id, merchant_catalog)
     return True, source_id, target_id, forced_changes, target_known
 
 
 def normalize_offer(
     offer: ET._Element,
+    source_category_id: str,
     target_category_id: str,
     merchant_catalog: dict[str, dict],
     brands_catalog: dict[str, str],
     countries_catalog: dict[str, str],
 ) -> bool:
+    source_text = offer_text_snapshot(offer)
     normalize_name_description(offer)
     normalize_old_price(offer)
     enrich_vendor_country_from_params(offer)
@@ -2398,8 +3653,10 @@ def normalize_offer(
     normalize_country_by_catalog(offer, countries_catalog)
     cleanup_params(offer, target_category_id, merchant_catalog)
     apply_siphon_category_rules(offer, target_category_id, merchant_catalog)
+    apply_minimal_derived_maudau_rules(offer, source_category_id, target_category_id, source_text, merchant_catalog)
     cleanup_pictures(offer)
     offer.attrib.pop("group_id", None)
+    reorder_offer_children_for_readability(offer)
 
     url_node = offer.find("url")
     if url_node is not None:
@@ -3475,6 +4732,11 @@ def main() -> int:
         offers = root.xpath("//offer")
         for offer in list(offers):
             source_category_id = child_text(offer, "categoryId")
+            if source_category_id in DROPPED_DUPLICATE_SIPHON_SOURCE_CATEGORIES:
+                offer.getparent().remove(offer)
+                removed_invalid += 1
+                continue
+
             vendor = normalize_key(child_text(offer, "vendor"))
             key = resolve_offer_id_key(offer)
             rz = rozetka_idx.get(key)
@@ -3527,12 +4789,10 @@ def main() -> int:
                 removed_invalid += 1
                 continue
             if merchant_catalog and not target_known:
-                # Temporary safe mode: do not export offers for categories
-                # that are not yet present in MAUDAU merchant categories.
-                offer.getparent().remove(offer)
+                # Maudau already accepts a number of working "my category" ids
+                # that are absent from the merchant category dump. Keep them in
+                # the feed and only count them for diagnostics.
                 unresolved_target_category += 1
-                removed_unknown_target_category += 1
-                continue
 
             if source_category_id != child_text(offer, "categoryId"):
                 changed_category += 1
@@ -3541,6 +4801,7 @@ def main() -> int:
             target_category_id = child_text(offer, "categoryId")
             if not normalize_offer(
                 offer,
+                source_category_id,
                 target_category_id,
                 merchant_catalog,
                 brands_catalog,
@@ -3555,8 +4816,9 @@ def main() -> int:
         ensure_root_date(root)
         deduped_ids = ensure_unique_offer_ids(root)
         rebuild_categories(root, merchant_catalog, source_category_names)
+        normalize_xml_spacing(root)
 
-        tree.write(str(OUTPUT_XML), encoding="UTF-8", xml_declaration=True, pretty_print=False)
+        tree.write(str(OUTPUT_XML), encoding="UTF-8", xml_declaration=True, pretty_print=True)
         try:
             shutil.copy2(OUTPUT_XML, LOCAL_OUTPUT_XML)
         except Exception as exc:
